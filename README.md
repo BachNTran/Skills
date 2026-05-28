@@ -68,6 +68,44 @@ project-root/
             └── slices/              ← S001.md, S002.md, ...
 ```
 
+## Daily Use
+
+**Morning / session start:**
+```
+/workflow
+```
+The agent reads the current state and tells you exactly what to do next.
+
+**You have an idea:**
+```
+/idea
+```
+Or just describe it naturally — the agent will detect idea-like content and offer to capture it without derailing your active work.
+
+**Ready to plan a feature:**
+```
+/feature
+```
+The agent grills you until the vision is clear, then produces all planning artifacts (BRIEF, PRD, TEST_PLAN, ISSUE_PLAN, slices). Nothing moves to implementation until you approve.
+
+**Ready to build:**
+```
+/implement
+```
+The agent confirms the base branch with you, then runs TDD on each slice — parallel sub-agents in isolated worktrees where supported, sequential otherwise. You only get interrupted on blockers.
+
+**After a feature ships:**
+```
+/cleanup
+```
+The agent reviews the architecture and proposes refactor slices (to the idea backlog) before the next feature starts. Cleanup is never mixed with feature work.
+
+**New to the project:**
+```
+/onboard
+```
+The agent reads everything and gives you a complete picture of the project, then guides you to your first action.
+
 ## Philosophy
 
 - **Developer always in the loop** — you approve every plan before execution starts.
