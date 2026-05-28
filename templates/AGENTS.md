@@ -32,8 +32,8 @@ When unsure, run /workflow. (Agents without slash-command support: read the matc
 
 1. AGENTS.md (this file)
 2. PROJECT_CONTEXT.md
-3. DEV_TRACKER.md
-4. ROADMAP.md if no active work, else docs/features/[active]/HANDOFF.md
+3. ProjectManagement/DEV_TRACKER.md
+4. ProjectManagement/ROADMAP.md if no active work, else ProjectManagement/features/[active]/HANDOFF.md
 
 ## Architecture Docs
 
@@ -54,7 +54,7 @@ See `docs/architecture/README.md` for what to put in each.
 1. No code without an approved ISSUE_PLAN.md
 2. No ISSUE_PLAN without an approved PRD and TEST_PLAN
 3. No PRD without an approved BRIEF
-4. New ideas go to docs/ideas/ — never interrupt active work
+4. New ideas go to ProjectManagement/ideas/ — never interrupt active work
 5. One feature active at a time; one feature branch per feature, off the developer-confirmed base (default: the current branch — `/implement` asks before branching)
 6. Tests written before implementation (TDD red/green/refactor)
 7. Tests co-located with code (per project convention)
@@ -95,9 +95,9 @@ Promoting an idea to the roadmap · approving BRIEF / PRD / TEST_PLAN / ISSUE_PL
 ## Responding to Common Requests
 
 - "I have an idea" → /idea immediately
-- "I want to add a feature" → check DEV_TRACKER.md, then /feature
-- "What should I work on?" → summarize ROADMAP.md Now column
-- "What's the status?" → summarize DEV_TRACKER.md
+- "I want to add a feature" → check ProjectManagement/DEV_TRACKER.md, then /feature
+- "What should I work on?" → summarize ProjectManagement/ROADMAP.md Now column
+- "What's the status?" → summarize ProjectManagement/DEV_TRACKER.md
 - "Walk me through the project" → /onboard
 - "Start building" → /implement (confirm ISSUE_PLAN approved first)
 - "Clean up" → /cleanup

@@ -10,9 +10,9 @@ You produce durable artifacts that enable autonomous execution. Quality here det
 ## On Start
 
 1. Read `AGENTS.md`, `PROJECT_CONTEXT.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/MODULE_MAP.md`, `docs/architecture/CONTEXT.md`
-2. Read `ROADMAP.md` — confirm feature is in Now column
+2. Read `ProjectManagement/ROADMAP.md` — confirm feature is in Now column
 3. Ask developer which feature to plan if ambiguous
-4. Create feature folder: `docs/features/FEAT-[NNNN]-[slug]/`
+4. Create feature folder: `ProjectManagement/features/FEAT-[NNNN]-[slug]/`
 5. Create empty `BRIEF.md` with YAML frontmatter and section headers
 
 ---
@@ -61,7 +61,7 @@ For Remove: scan codebase for all references before asking anything.
 
 ### Branch 0: Non-Goals
 "What are we explicitly NOT building in this feature?"
-Read ROADMAP.md and docs/ideas/ to suggest likely scope temptations.
+Read ProjectManagement/ROADMAP.md and ProjectManagement/ideas/ to suggest likely scope temptations.
 Require at least one explicit exclusion.
 
 ### Branch 1: User/System Behavior
@@ -184,7 +184,7 @@ Convert Branch 5 signal into locked decisions.
    Flag if dependency list is growing — propose injection/adapter.
 
 4. Write ADR if flagged in Branch 5:
-   - Create `docs/features/FEAT-[NNNN]/decisions/ADR-001-[slug].md` (feature-scoped)
+   - Create `ProjectManagement/features/FEAT-[NNNN]/decisions/ADR-001-[slug].md` (feature-scoped)
    - Or `docs/decisions/ADR-[NNN]-[slug].md` if it affects all future features
    - Rule: if another dev on a different feature must know this → project-scoped
 
@@ -207,7 +207,7 @@ Convert PRD.md + TEST_PLAN.md into vertical slice files.
 - Does a test double already exist for this dependency?
 - If new double needed → create as its own slice first (always first in dependency order)
 
-**Slice file structure** (`docs/features/FEAT-[NNNN]/slices/S[NNN].md`) — use [`templates/SLICE_TEMPLATE.md`](templates/SLICE_TEMPLATE.md).
+**Slice file structure** (`ProjectManagement/features/FEAT-[NNNN]/slices/S[NNN].md`) — use [`templates/SLICE_TEMPLATE.md`](templates/SLICE_TEMPLATE.md).
 
 **ISSUE_PLAN.md** — dependency graph + wave grouping. Use [`templates/ISSUE_PLAN_TEMPLATE.md`](templates/ISSUE_PLAN_TEMPLATE.md).
 
@@ -221,11 +221,11 @@ When ISSUE_PLAN.md is approved, report:
 ```
 Feature FEAT-[NNNN] fully planned.
 Artifacts created:
-  docs/features/FEAT-[NNNN]/BRIEF.md       ✓
-  docs/features/FEAT-[NNNN]/PRD.md         ✓
-  docs/features/FEAT-[NNNN]/TEST_PLAN.md   ✓
-  docs/features/FEAT-[NNNN]/ISSUE_PLAN.md  ✓
-  docs/features/FEAT-[NNNN]/slices/        ✓ ([N] slices in [M] waves)
+  ProjectManagement/features/FEAT-[NNNN]/BRIEF.md       ✓
+  ProjectManagement/features/FEAT-[NNNN]/PRD.md         ✓
+  ProjectManagement/features/FEAT-[NNNN]/TEST_PLAN.md   ✓
+  ProjectManagement/features/FEAT-[NNNN]/ISSUE_PLAN.md  ✓
+  ProjectManagement/features/FEAT-[NNNN]/slices/        ✓ ([N] slices in [M] waves)
   [ADRs if any]
   [Architecture updates if any]
   [Knowledge base additions if any]

@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Triage the idea backlog. Reads pre-scored ideas from docs/ideas/, surfaces uncertain or borderline entries for developer decision, and updates ROADMAP.md. Use when your backlog has grown and you want to decide what deserves attention next.
+description: Triage the idea backlog. Reads pre-scored ideas from ProjectManagement/ideas/, surfaces uncertain or borderline entries for developer decision, and updates ProjectManagement/ROADMAP.md. Use when your backlog has grown and you want to decide what deserves attention next.
 ---
 
 You are triaging the idea backlog. Your job is to surface decisions — not make them. Ideas were scored at capture time by /idea. Present those scores, flag the uncertain ones, and get the developer to confirm buckets.
@@ -15,7 +15,7 @@ You are triaging the idea backlog. Your job is to surface decisions — not make
 
 ## Step 1 — Load Backlog
 
-Read all files in `docs/ideas/` with `status: new` or `status: needs-review`.
+Read all files in `ProjectManagement/ideas/` with `status: new` or `status: needs-review`.
 
 Group by bucket from their saved score:
 - Promote candidates (score 8–10)
@@ -45,9 +45,9 @@ For "Needs Grill" ideas: mark them and move on — don't grill here.
 
 After developer decisions:
 
-Update each `docs/ideas/IDEA-[NNN].md` status field.
+Update each `ProjectManagement/ideas/IDEA-[NNN].md` status field.
 
-Update `ROADMAP.md`:
+Update `ProjectManagement/ROADMAP.md`:
 - Promoted ideas → Now or Next column (max 1 in Now, 3 in Next)
 - Parked ideas → Later column
 - Rejected → Rejected table with reason
@@ -58,7 +58,7 @@ Update `ROADMAP.md`:
 Report:
 ```
 Triage complete.
-Promoted: [N] ideas → ROADMAP.md
+Promoted: [N] ideas → ProjectManagement/ROADMAP.md
 Parked:   [N] ideas
 Rejected: [N] ideas
 Needs grill: [N] ideas (run /feature when ready)

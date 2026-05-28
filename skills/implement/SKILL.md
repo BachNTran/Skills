@@ -9,10 +9,10 @@ You are the implementation orchestrator. Your job is to execute an approved feat
 
 Read in order:
 1. `AGENTS.md`
-2. `DEV_TRACKER.md` — which feature is active?
-3. `docs/features/FEAT-[NNNN]/ISSUE_PLAN.md` — wave groups and slice order
-4. `docs/features/FEAT-[NNNN]/PRD.md`
-5. `docs/features/FEAT-[NNNN]/TEST_PLAN.md`
+2. `ProjectManagement/DEV_TRACKER.md` — which feature is active?
+3. `ProjectManagement/features/FEAT-[NNNN]/ISSUE_PLAN.md` — wave groups and slice order
+4. `ProjectManagement/features/FEAT-[NNNN]/PRD.md`
+5. `ProjectManagement/features/FEAT-[NNNN]/TEST_PLAN.md`
 6. `CODING_STANDARDS.md`
 7. `docs/knowledge-base/` relevant entries (if hardware feature)
 
@@ -32,9 +32,9 @@ git checkout -b feature/FEAT-[NNNN]-[slug] "$BASE"
 git worktree add .worktrees/FEAT-[NNNN] feature/FEAT-[NNNN]-[slug]
 ```
 
-Record the confirmed base in `DEV_TRACKER.md` so PHASE 12 knows the merge target.
+Record the confirmed base in `ProjectManagement/DEV_TRACKER.md` so PHASE 12 knows the merge target.
 
-### Update DEV_TRACKER.md
+### Update ProjectManagement/DEV_TRACKER.md
 
 Add feature to Active Features table with wave status.
 
@@ -58,13 +58,13 @@ For each wave, run its slices — one parallel sub-agent per slice where support
 - `AGENTS.md`
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/architecture/CONTEXT.md`
-- `docs/features/FEAT-[NNNN]/PRD.md`
-- `docs/features/FEAT-[NNNN]/TEST_PLAN.md`
+- `ProjectManagement/features/FEAT-[NNNN]/PRD.md`
+- `ProjectManagement/features/FEAT-[NNNN]/TEST_PLAN.md`
 - `CODING_STANDARDS.md`
 - `docs/knowledge-base/` relevant entries (hardware only)
 
 **Per-agent context (unique):**
-- `docs/features/FEAT-[NNNN]/slices/S[NNN].md`
+- `ProjectManagement/features/FEAT-[NNNN]/slices/S[NNN].md`
 - Own git worktree: `.worktrees/FEAT-[NNNN]-S[NNN]/`
 - Own branch: `feature/FEAT-[NNNN]-S[NNN]` (off feature branch)
 
@@ -103,7 +103,7 @@ For each criterion in slice acceptance checklist:
     If test fails after refactor → revert refactor, investigate.
 
   LOG:
-    Append entry to docs/features/FEAT-[NNNN]/RISK_LOG.md
+    Append entry to ProjectManagement/features/FEAT-[NNNN]/ProjectManagement/RISK_LOG.md
     if any risk was discovered during implementation.
 
 Move to next criterion.
@@ -185,7 +185,7 @@ After each slice completion report:
 All pass → auto-merge slice branch to feature branch → delete slice worktree → notify orchestrator.
 Any fail → report specific failure to developer.
 
-**Append to `docs/features/FEAT-[NNNN]/REVIEW.md`:**
+**Append to `ProjectManagement/features/FEAT-[NNNN]/REVIEW.md`:**
 ```markdown
 ## S[NNN] — [behavior] — [YYYY-MM-DD]
 Result: PASS
@@ -199,7 +199,7 @@ Regression: PASS
 
 ## PHASE 10 — HANDOFF (updated per wave)
 
-After each wave completes, update `docs/features/FEAT-[NNNN]/HANDOFF.md` using the structure in [`templates/HANDOFF_TEMPLATE.md`](templates/HANDOFF_TEMPLATE.md).
+After each wave completes, update `ProjectManagement/features/FEAT-[NNNN]/HANDOFF.md` using the structure in [`templates/HANDOFF_TEMPLATE.md`](templates/HANDOFF_TEMPLATE.md).
 
 ---
 
@@ -224,14 +224,14 @@ When all waves complete:
 □ HANDOFF.md reflects final state
 □ docs/architecture/ updated if boundaries changed
 □ CODING_STANDARDS linter passes on all new code
-□ No open D-type blockers in DEV_TRACKER.md
+□ No open D-type blockers in ProjectManagement/DEV_TRACKER.md
 □ docs/knowledge-base/ updated if new hardware knowledge gained
-□ Project-level RISK_LOG.md updated if risks have broader scope
+□ Project-level ProjectManagement/RISK_LOG.md updated if risks have broader scope
 ```
 
-Create merge request: `feature/FEAT-[NNNN]-[slug]` → the base branch confirmed at PHASE 7 (recorded in `DEV_TRACKER.md`).
+Create merge request: `feature/FEAT-[NNNN]-[slug]` → the base branch confirmed at PHASE 7 (recorded in `ProjectManagement/DEV_TRACKER.md`).
 
-Update DEV_TRACKER.md — move feature from Active to Pending MR.
+Update ProjectManagement/DEV_TRACKER.md — move feature from Active to Pending MR.
 
 Report:
 ```

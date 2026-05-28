@@ -26,12 +26,12 @@ Why: [dependency reason]
 | File | Why it matters |
 
 ## Known Risks
-[from RISK_LOG.md]
+[from this feature's RISK_LOG.md]
 
 ## How to Resume
 1. Read PROJECT_CONTEXT.md
 2. Read AGENTS.md
-3. Read DEV_TRACKER.md
+3. Read ProjectManagement/DEV_TRACKER.md
 4. Read this HANDOFF.md
 5. Run regression suite — confirm clean
 6. Continue from Wave [N+1]

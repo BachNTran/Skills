@@ -21,18 +21,18 @@ Read everything before saying anything:
 - `docs/architecture/GLOSSARY.md`
 
 **Current state:**
-- `ROADMAP.md`
-- `DEV_TRACKER.md`
-- `RISK_LOG.md`
+- `ProjectManagement/ROADMAP.md`
+- `ProjectManagement/DEV_TRACKER.md`
+- `ProjectManagement/RISK_LOG.md`
 
 **Recent features (last 3 completed):**
-- `docs/features/[recent]/HANDOFF.md`
-- `docs/features/[recent]/REVIEW.md`
+- `ProjectManagement/features/[recent]/HANDOFF.md`
+- `ProjectManagement/features/[recent]/REVIEW.md`
 
 **Active feature (if any):**
-- `docs/features/[active]/BRIEF.md`
-- `docs/features/[active]/HANDOFF.md`
-- `docs/features/[active]/ISSUE_PLAN.md`
+- `ProjectManagement/features/[active]/BRIEF.md`
+- `ProjectManagement/features/[active]/HANDOFF.md`
+- `ProjectManagement/features/[active]/ISSUE_PLAN.md`
 
 **Knowledge base:**
 - `docs/knowledge-base/` (all entries if hardware project)
@@ -70,15 +70,15 @@ Summarize completed features from recent HANDOFF.md files.
 One sentence per feature: what it does, where it lives.
 
 ### 6. What Is In Progress
-Summarize active feature from DEV_TRACKER.md + HANDOFF.md.
+Summarize active feature from ProjectManagement/DEV_TRACKER.md + HANDOFF.md.
 Current wave, remaining slices, any open blockers.
 
 ### 7. What Is Planned Next
-Summarize ROADMAP.md Now/Next columns.
+Summarize ProjectManagement/ROADMAP.md Now/Next columns.
 One sentence per item.
 
 ### 8. Known Risks
-Summarize RISK_LOG.md — top 2-3 risks worth knowing.
+Summarize ProjectManagement/RISK_LOG.md — top 2-3 risks worth knowing.
 
 ### 9. Knowledge Base (hardware projects only)
 List documented hardware components in docs/knowledge-base/.
@@ -98,7 +98,7 @@ Common questions to handle well:
 - "Why was [decision] made?" → docs/decisions/ ADRs
 - "What tests exist for [module]?" → scan test files in module
 - "How do I run the tests?" → CODING_STANDARDS.md test command
-- "What should I work on?" → ROADMAP.md + DEV_TRACKER.md
+- "What should I work on?" → ProjectManagement/ROADMAP.md + ProjectManagement/DEV_TRACKER.md
 
 ---
 

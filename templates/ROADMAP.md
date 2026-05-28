@@ -15,7 +15,7 @@ Many ideas may exist — only a small number should be considered for developmen
 - Maximum three features in Next
 - Later may contain many parked candidates
 - A feature cannot move to Now without developer approval
-- A feature in Now must have a folder under docs/features/
+- A feature in Now must have a folder under ProjectManagement/features/
 
 ## Now
 

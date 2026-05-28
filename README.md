@@ -55,7 +55,11 @@ Reproduce: `python3 -c "import tiktoken; e=tiktoken.get_encoding('cl100k_base');
 ./install.sh bootstrap   # project install + create project docs
 ```
 
-`bootstrap` also creates the documentation structure: `AGENTS.md` (plus a thin `CLAUDE.md` pointer), `PROJECT_CONTEXT.md`, `ROADMAP.md`, `DEV_TRACKER.md`, `CODING_STANDARDS.md`, `RISK_LOG.md`, and `docs/{ideas,architecture,decisions,knowledge-base,features}/`.
+`bootstrap` also creates the project structure:
+
+- **Permanent context** at root: `AGENTS.md` (+ thin `CLAUDE.md` pointer), `PROJECT_CONTEXT.md`, `CODING_STANDARDS.md`.
+- **ProjectManagement/** for transient work-tracking: `ROADMAP.md`, `DEV_TRACKER.md`, `RISK_LOG.md`, `ideas/`, `features/`.
+- **docs/** for durable knowledge: `architecture/`, `decisions/`, `knowledge-base/`.
 
 Then fill in `PROJECT_CONTEXT.md` + `CODING_STANDARDS.md` and run `/workflow`.
 
@@ -67,27 +71,31 @@ project-root/
 ├── CLAUDE.md                        ← thin pointer so Claude Code auto-loads AGENTS.md
 ├── PROJECT_CONTEXT.md               ← what this project is
 ├── CODING_STANDARDS.md              ← coding rules + linter
-├── ROADMAP.md                       ← feature priority
-├── DEV_TRACKER.md                   ← active work board
-├── RISK_LOG.md                      ← project-wide risks
 │
-└── docs/
-    ├── ideas/                       ← captured ideas (one file per idea)
-    ├── architecture/                ← ARCHITECTURE.md, MODULE_MAP.md, CONTEXT.md
+├── ProjectManagement/               ← transient work tracking
+│   ├── ROADMAP.md                   ← feature priority
+│   ├── DEV_TRACKER.md               ← active work board
+│   ├── RISK_LOG.md                  ← project-wide risks
+│   ├── ideas/                       ← captured ideas (one file per idea)
+│   └── features/
+│       └── FEAT-0001-name/
+│           ├── BRIEF.md             ← grill output
+│           ├── PRD.md               ← frozen requirements
+│           ├── TEST_PLAN.md         ← concrete test cases
+│           ├── ISSUE_PLAN.md        ← slice plan
+│           ├── REVIEW.md            ← per-slice review
+│           ├── HANDOFF.md           ← resume context
+│           ├── RISK_LOG.md          ← feature-scoped risks
+│           ├── decisions/           ← feature-scoped ADRs
+│           └── slices/              ← S001.md, S002.md, ...
+│
+└── docs/                             ← durable knowledge
+    ├── architecture/                ← ARCHITECTURE.md, MODULE_MAP.md, CONTEXT.md, GLOSSARY.md
     ├── decisions/                   ← project-wide ADRs
-    ├── knowledge-base/              ← hardware/domain knowledge (permanent)
-    └── features/
-        └── FEAT-0001-name/
-            ├── BRIEF.md             ← grill output
-            ├── PRD.md               ← frozen requirements
-            ├── TEST_PLAN.md         ← concrete test cases
-            ├── ISSUE_PLAN.md        ← slice plan
-            ├── REVIEW.md            ← per-slice review
-            ├── HANDOFF.md           ← resume context
-            ├── RISK_LOG.md          ← feature-scoped risks
-            ├── decisions/           ← feature-scoped ADRs
-            └── slices/              ← S001.md, S002.md, ...
+    └── knowledge-base/              ← hardware/domain knowledge (permanent)
 ```
+
+Docs may reference features in `ProjectManagement/` (e.g., an ADR cites the feature that drove it); features do not reference each other through `docs/`.
 
 ## Daily Use
 
