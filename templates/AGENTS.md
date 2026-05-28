@@ -1,94 +1,103 @@
 # AGENTS.md
 
+Canonical instructions for any AI coding agent in this project (Claude Code, Codex, Cursor, and other AGENTS.md-aware tools). Read this at the start of every session.
+
 ## Mission
 
-Develop cleanly, incrementally, and testably.
-
-Do not optimize for fast code generation.
-Optimize for controlled progress, clear behavior, small diffs, durable tests, and understandable architecture.
+Develop cleanly, incrementally, and testably. Optimize for controlled progress, clear behavior, small diffs, durable tests, and understandable architecture — not for fast code generation.
 
 ## Workflow Spine
 
 ```
-IDEA CAPTURE
-→ TRIAGE
-→ DOMAIN MODEL / DOMAIN CONTEXT (hardware only)
-→ FEATURE GRILL
-→ PRD
-→ TEST PLAN GRILL
-→ ARCHITECTURE FIT
-→ ISSUE SLICING
-→ WAVE ACTIVATION
-→ TDD EXECUTION (autonomous)
-→ AUTOMATED REVIEW
-→ HANDOFF
-→ REPEAT
-→ FEATURE CLOSE
-→ ARCHITECTURE CLEANUP
+IDEA → TRIAGE → FEATURE PLANNING → IMPLEMENTATION → CLEANUP
 ```
+
+Full pipeline: idea capture → triage → domain context (hardware only) → feature grill → PRD → test-plan grill → architecture fit → issue slicing → execution (TDD, autonomous) → automated review → handoff → repeat → feature close → cleanup.
+
+## Skills
+
+| Skill      | When to use                                       |
+|------------|---------------------------------------------------|
+| /workflow  | Start here. Context-aware guide to the next step. |
+| /idea      | Capture an idea without interrupting active work. |
+| /triage    | Sort the idea backlog, update the roadmap.        |
+| /feature   | Plan a feature end-to-end (grill → slices).       |
+| /implement | Execute an approved feature plan (TDD → MR).      |
+| /cleanup   | Periodic architecture review and cleanup.         |
+| /onboard   | Walk a developer through the project.             |
+
+When unsure, run /workflow. (Agents without slash-command support: read the matching file under skills/ and follow it.)
+
+## Read at Session Start
+
+1. AGENTS.md (this file)
+2. PROJECT_CONTEXT.md
+3. DEV_TRACKER.md
+4. ROADMAP.md if no active work, else docs/features/[active]/HANDOFF.md
+
+## Architecture Docs
+
+Default paths used by the workflow skills. If you rename or relocate any of these to match your project's naming convention, update this table — the agent reads this section to find the actual files.
+
+| Doc                  | Default path                                |
+|----------------------|---------------------------------------------|
+| System overview      | `docs/architecture/ARCHITECTURE.md`         |
+| Module map           | `docs/architecture/MODULE_MAP.md`           |
+| Shared language      | `docs/architecture/CONTEXT.md`              |
+| Glossary             | `docs/architecture/GLOSSARY.md`             |
+| Architecture review  | `docs/architecture/ARCHITECTURE_REVIEW.md`  |
+
+See `docs/architecture/README.md` for what to put in each.
 
 ## Hard Rules
 
 1. No code without an approved ISSUE_PLAN.md
-2. No ISSUE_PLAN without approved PRD and TEST_PLAN
-3. No PRD without approved BRIEF
-4. New ideas go to docs/ideas/ — do not interrupt active work
-5. Only one feature active at a time per developer
-6. Tests written before implementation (TDD — red/green/refactor)
-7. Tests live co-located with code (per project convention)
-8. Test doubles never inline in test files — always shared files
+2. No ISSUE_PLAN without an approved PRD and TEST_PLAN
+3. No PRD without an approved BRIEF
+4. New ideas go to docs/ideas/ — never interrupt active work
+5. One feature active at a time; one feature branch per feature, off the developer-confirmed base (default: the current branch — `/implement` asks before branching)
+6. Tests written before implementation (TDD red/green/refactor)
+7. Tests co-located with code (per project convention)
+8. Test doubles never inline — always in shared files
 9. No new dependency without developer approval
-10. No architecture boundary change without ADR
+10. No architecture boundary change without an ADR
 11. No completion claim without test evidence
-12. Stop if scope expands beyond slice budget
-13. Stop if new dependency is needed
-14. Stop if architecture boundary is unclear
-15. Cleanup is never mixed with feature work
-16. CODING_STANDARDS linter must pass before slice closes
+12. Stop on: scope beyond slice budget, new dependency needed, or unclear boundary
+13. Cleanup is never mixed with feature work
+14. CODING_STANDARDS linter must pass before a slice closes
 
 ## Architecture Rules
 
 - Prefer deep modules with thin public interfaces
-- Keep external systems behind adapters or boundaries
-- Keep domain/business logic separate from infrastructure
-- Tests close to behavior — co-located with code
+- Keep external systems behind adapters/boundaries; domain logic separate from infrastructure
 - If tests are hard to write, inspect architecture before forcing mocks
 - Reuse existing helpers, doubles, and utilities before creating new ones
-- New module requires: single stated responsibility + minimal public interface
+- A new module requires a single stated responsibility and a minimal public interface
 
 ## Test Double Rules
 
-- One authoritative double per external dependency
-- Double specification document required alongside double file
-- Double simulates real system behavior as closely as possible
-- Document known gaps (what double cannot simulate)
-- Known gaps → require integration tests against real system
-- Never create ad-hoc mocks inline in test files
+- One authoritative double per external dependency, in its own file with a spec document
+- Double simulates real behavior as closely as possible; document known gaps
+- Known gaps require integration tests against the real system
+- Never create ad-hoc inline mocks
 
 ## Completion Report (every slice)
 
 ```
-Slice:
-Status:
-Behavior:
-Tests added:
-Files changed:
-Files count: [n] of [budget]
-Regression: PASS/FAIL
-Reuse found: yes/no
-New doubles: yes/no
-Risks:
-Next slice unblocked:
+Slice / Status / Behavior / Tests added / Files changed / Files count [n of budget]
+Regression PASS|FAIL / Reuse found / New doubles / Risks / Next slice unblocked
 ```
 
 ## Human Approval Required
 
-- Promoting idea to roadmap
-- Approving BRIEF.md
-- Approving PRD.md
-- Approving TEST_PLAN.md
-- Approving ISSUE_PLAN.md
-- D-type blockers during execution
-- Architecture boundary changes
-- New dependencies
-- Feature close sign-off
+Promoting an idea to the roadmap · approving BRIEF / PRD / TEST_PLAN / ISSUE_PLAN · D-type blockers during execution · architecture boundary changes · new dependencies · feature-close sign-off.
+
+## Responding to Common Requests
+
+- "I have an idea" → /idea immediately
+- "I want to add a feature" → check DEV_TRACKER.md, then /feature
+- "What should I work on?" → summarize ROADMAP.md Now column
+- "What's the status?" → summarize DEV_TRACKER.md
+- "Walk me through the project" → /onboard
+- "Start building" → /implement (confirm ISSUE_PLAN approved first)
+- "Clean up" → /cleanup

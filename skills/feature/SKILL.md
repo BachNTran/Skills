@@ -5,11 +5,11 @@ description: Full feature planning pipeline. Runs end-to-end from domain context
 
 You are running the full feature planning pipeline. Your job is to deeply understand the feature with the developer, freeze requirements, define tests, fit architecture, and slice into executable issues — all before any code is written.
 
-You produce durable artifacts that enable autonomous sub-agent execution. Quality here determines quality of everything downstream.
+You produce durable artifacts that enable autonomous execution. Quality here determines quality of everything downstream.
 
 ## On Start
 
-1. Read `CLAUDE.md`, `PROJECT_CONTEXT.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/MODULE_MAP.md`, `docs/architecture/CONTEXT.md`
+1. Read `AGENTS.md`, `PROJECT_CONTEXT.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/MODULE_MAP.md`, `docs/architecture/CONTEXT.md`
 2. Read `ROADMAP.md` — confirm feature is in Now column
 3. Ask developer which feature to plan if ambiguous
 4. Create feature folder: `docs/features/FEAT-[NNNN]-[slug]/`
@@ -25,7 +25,7 @@ Skip this phase entirely if the feature is pure software with no hardware intera
 - Feature touches hardware, peripherals, or custom silicon
 - Feature involves proprietary protocols or specialized interfaces
 - Codebase contains register definitions, hardware addresses, or errata references
-- Feature area has patterns Claude cannot explain from general knowledge
+- Feature area has patterns the agent cannot explain from general knowledge
 
 **If triggered:**
 
@@ -121,31 +121,7 @@ Update BRIEF.md status to `approved` on confirmation.
 Convert approved BRIEF.md to `PRD.md`. Do NOT re-interview — everything comes from BRIEF.md.
 Only ask developer if a genuine blocker exists that BRIEF didn't resolve.
 
-PRD.md structure:
-```markdown
----
-feature: FEAT-[NNNN]
-status: draft
-created: [YYYY-MM-DD]
-brief: [BRIEF.md](BRIEF.md)
----
-
-# PRD: FEAT-[NNNN] [Feature Name]
-
-## Problem
-## Goal
-## Non-Goals
-## User/System Stories
-## Functional Requirements
-| ID | Requirement | Priority | Testable? |
-## Behavior Examples (Given/When/Then — high level)
-## Failure Behavior
-## Integration Points
-## Architecture Signal
-## Acceptance Criteria
-## Open Questions (non-blocking only)
-## Approval
-```
+Use the structure in [`templates/PRD_TEMPLATE.md`](templates/PRD_TEMPLATE.md) (loaded at this phase, not earlier).
 
 Self-check before approval request:
 - Every Branch 0-7 decision is reflected
@@ -169,27 +145,7 @@ You are simultaneously two characters:
 
 Generate a comprehensive draft test plan from PRD.md, then present it to the developer for review and additions.
 
-For each test case, think through:
-- INPUTS: valid, invalid, boundary, empty, enormous, malformed, adversarial
-- STATES: fresh, populated, corrupted, partial, missing
-- SEQUENCES: out of order, repeated, interrupted, skipped steps
-- ENVIRONMENTS: slow, unavailable, degraded, resource-constrained
-- ACTORS: intended user, confused user, impatient user, concurrent user, adversarial actor
-- FAILURES: each dependency unavailable, each write failing, each read returning garbage
-- CONCURRENCY: simultaneous identical operations, conflicting operations, race conditions
-- RECOVERY: retry behavior, partial state cleanup, rollback correctness
-- OBSERVABILITY: can a test assert this result without human eyes?
-- TIME: too early, too late, expired, wrong clock, unexpected ordering
-
-For hardware/embedded projects, also cover:
-- Endianness and byte order
-- Cache coherency and DMA interaction
-- Interrupt timing and ISR reentrancy
-- Register access patterns and hazards
-- Memory alignment and word size
-- Power state transitions
-- Real-time deadline behavior
-- Hardware sanity tests (verify DOMAIN_CONTEXT.md claims on real hardware before implementation)
+Load [`templates/TEST_PLAN_DIMENSIONS.md`](templates/TEST_PLAN_DIMENSIONS.md) now and apply every dimension to each test case (hardware section applies only to hardware/embedded projects).
 
 Parameterize when 3+ test cases share structure but differ only in inputs.
 
@@ -251,70 +207,9 @@ Convert PRD.md + TEST_PLAN.md into vertical slice files.
 - Does a test double already exist for this dependency?
 - If new double needed → create as its own slice first (always first in dependency order)
 
-**Slice file structure** (`docs/features/FEAT-[NNNN]/slices/S[NNN].md`):
-```markdown
----
-slice: S[NNN]
-feature: FEAT-[NNNN]
-status: backlog
-depends-on: [S000 or none]
----
+**Slice file structure** (`docs/features/FEAT-[NNNN]/slices/S[NNN].md`) — use [`templates/SLICE_TEMPLATE.md`](templates/SLICE_TEMPLATE.md).
 
-# S[NNN] — [Behavior Name]
-
-## Behavior
-After this slice, the system can: [one sentence]
-
-## Scope (allowed)
-- [exact paths]
-
-## Non-Scope (do not touch)
-- [exact paths]
-
-## Acceptance Criteria
-- [ ] [binary criterion]
-
-## Test Command
-[exact command]
-
-## File Budget
-Expected: [n] files
-Maximum: [n × 1.5 rounded up]
-
-## Test Double Required
-[yes — new double spec needed / no — reuse existing at path]
-
-## Blockers
-[dependency or unresolved decision]
-
-## Linked
-- [PRD](../PRD.md)
-- [TEST_PLAN](../TEST_PLAN.md)
-- [Issue Plan](../ISSUE_PLAN.md)
-```
-
-**ISSUE_PLAN.md** — dependency graph + wave grouping:
-```markdown
----
-feature: FEAT-[NNNN]
-status: draft
----
-
-# ISSUE PLAN: FEAT-[NNNN]
-
-## Slice Overview
-| Slice | Behavior | Depends on | Risk | Status |
-
-## Wave Groups
-| Wave | Slices | Can parallelize |
-
-## Implementation Order
-1. S001 — reason
-2. S002 — reason
-
-## Blockers
-| Slice | Blocker | Resolution needed |
-```
+**ISSUE_PLAN.md** — dependency graph + wave grouping. Use [`templates/ISSUE_PLAN_TEMPLATE.md`](templates/ISSUE_PLAN_TEMPLATE.md).
 
 Developer approves ISSUE_PLAN.md before implementation begins.
 

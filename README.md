@@ -1,6 +1,8 @@
 # AI-Assisted Development Workflow
 
-A structured workflow for Claude Code that keeps the developer in control while enabling autonomous sub-agent execution. Clean code, tested behavior, durable documentation — without the chaos of unstructured AI coding sessions.
+A structured workflow that lets an AI coding agent do the grunt work at speed while the developer stays in control. Clean code, tested behavior, durable documentation — without the chaos of unstructured AI coding sessions.
+
+Built as slash-command **skills** for Claude Code, with all rules in **AGENTS.md** so any AGENTS.md-aware agent (Codex, Cursor, …) can follow the same methodology.
 
 ## How It Works
 
@@ -8,59 +10,61 @@ A structured workflow for Claude Code that keeps the developer in control while 
 IDEA → TRIAGE → FEATURE PLANNING → IMPLEMENTATION → CLEANUP
 ```
 
-You capture ideas without interrupting active work. Claude grills you on each feature until the vision is clear. Once you approve the plan, Claude executes autonomously — stopping only when your judgment is required. Every decision is documented. Every behavior is tested. Nothing merges without proof.
+You capture ideas without interrupting active work. The agent grills you on each feature until the vision is clear. Once you approve the plan, it executes autonomously — stopping only when your judgment is required. Every decision is documented. Every behavior is tested. Nothing merges without proof.
 
 ## Skills
 
 | Skill | When to use |
 |---|---|
 | `/workflow` | Start here — always. Context-aware guide to your next step. |
-| `/idea` | Capture an idea without interrupting active work |
-| `/triage` | Sort your idea backlog and update the roadmap |
-| `/feature` | Plan a feature end-to-end (grill → PRD → test plan → slices) |
-| `/implement` | Execute an approved feature plan (TDD → MR) |
-| `/cleanup` | Periodic architecture review and cleanup |
-| `/onboard` | Walk a new or returning developer through the project |
+| `/idea` | Capture an idea without interrupting active work. |
+| `/triage` | Sort the idea backlog and update the roadmap. |
+| `/feature` | Plan a feature end-to-end (grill → PRD → test plan → slices). |
+| `/implement` | Execute an approved feature plan (TDD → MR). |
+| `/cleanup` | Periodic architecture review and cleanup. |
+| `/onboard` | Walk a new or returning developer through the project. |
 
-**When in doubt: type `/workflow` and Claude will tell you what to do next.**
+When in doubt, run `/workflow` and the agent tells you the next step. (Agents without slash commands: point them at the matching file under `skills/`.)
+
+## Context Cost
+
+Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tokenizer is similar; values are within ~10%).
+
+| Skill        |   Hint¹ |   Body² |  Lazy templates³ |
+|--------------|--------:|--------:|-----------------:|
+| `/workflow`  |      45 |     607 | —                |
+| `/idea`      |      56 |     868 | —                |
+| `/triage`    |      47 |     576 | —                |
+| `/feature`   |      52 |   2,312 | 651  (4 files)   |
+| `/implement` |      51 |   1,939 | 183  (1 file)    |
+| `/cleanup`   |      49 |     897 | —                |
+| `/onboard`   |      54 |     983 | —                |
+| **Total**    | **354** | **8,182** | **834**        |
+
+¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
+² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.
+³ **Lazy templates** — per-phase template files (PRD, slice, ISSUE_PLAN, TEST_PLAN_DIMENSIONS, HANDOFF) that load only when the corresponding phase runs. They live under `skills/<skill>/templates/` and travel with the skill on install.
+
+Reproduce: `python3 -c "import tiktoken; e=tiktoken.get_encoding('cl100k_base'); ...` over `skills/**/*.md`.
 
 ## Install
 
-### Global (available in all projects)
-
 ```bash
-./install.sh global
+./install.sh global      # all projects  → ~/.claude/skills/
+./install.sh project     # this project  → .claude/skills/
+./install.sh bootstrap   # project install + create project docs
 ```
 
-Skills installed to `~/.claude/skills/`. Available everywhere.
+`bootstrap` also creates the documentation structure: `AGENTS.md` (plus a thin `CLAUDE.md` pointer), `PROJECT_CONTEXT.md`, `ROADMAP.md`, `DEV_TRACKER.md`, `CODING_STANDARDS.md`, `RISK_LOG.md`, and `docs/{ideas,architecture,decisions,knowledge-base,features}/`.
 
-### Project-level (this project only)
-
-```bash
-./install.sh project
-```
-
-Skills installed to `.claude/skills/`. Checked into your repo.
-
-### Bootstrap a new project (install + create project docs)
-
-```bash
-./install.sh bootstrap
-```
-
-Installs skills and creates the full project documentation structure:
-- `CLAUDE.md`, `AGENTS.md`, `PROJECT_CONTEXT.md`
-- `ROADMAP.md`, `DEV_TRACKER.md`, `CODING_STANDARDS.md`, `RISK_LOG.md`
-- `docs/architecture/`, `docs/decisions/`, `docs/features/`, `docs/ideas/`, `docs/knowledge-base/`
-
-Then fill in `PROJECT_CONTEXT.md` and run `/workflow`.
+Then fill in `PROJECT_CONTEXT.md` + `CODING_STANDARDS.md` and run `/workflow`.
 
 ## Project Structure Created
 
 ```
 project-root/
-├── CLAUDE.md                        ← workflow guide for Claude
-├── AGENTS.md                        ← hard rules for agents
+├── AGENTS.md                        ← canonical agent instructions (all rules)
+├── CLAUDE.md                        ← thin pointer so Claude Code auto-loads AGENTS.md
 ├── PROJECT_CONTEXT.md               ← what this project is
 ├── CODING_STANDARDS.md              ← coding rules + linter
 ├── ROADMAP.md                       ← feature priority
@@ -68,7 +72,7 @@ project-root/
 ├── RISK_LOG.md                      ← project-wide risks
 │
 └── docs/
-    ├── ideas/                       ← captured ideas (per idea)
+    ├── ideas/                       ← captured ideas (one file per idea)
     ├── architecture/                ← ARCHITECTURE.md, MODULE_MAP.md, CONTEXT.md
     ├── decisions/                   ← project-wide ADRs
     ├── knowledge-base/              ← hardware/domain knowledge (permanent)
@@ -91,52 +95,52 @@ project-root/
 ```
 /workflow
 ```
-Claude reads the current state and tells you exactly what to do next.
+The agent reads the current state and tells you exactly what to do next.
 
 **You have an idea:**
 ```
 /idea
 ```
-Or just tell Claude naturally — it will detect idea-like content and offer to capture it.
+Or just describe it naturally — the agent will detect idea-like content and offer to capture it without derailing your active work.
 
 **Ready to plan a feature:**
 ```
 /feature
 ```
-Claude grills you until the feature is fully understood, then produces all planning artifacts.
+The agent grills you until the vision is clear, then produces all planning artifacts (BRIEF, PRD, TEST_PLAN, ISSUE_PLAN, slices). Nothing moves to implementation until you approve.
 
 **Ready to build:**
 ```
 /implement
 ```
-Claude spawns parallel sub-agents, each executing TDD in isolated worktrees. You only get interrupted on blockers.
+The agent confirms the base branch with you, then runs TDD on each slice — parallel sub-agents in isolated worktrees where supported, sequential otherwise. You only get interrupted on blockers.
 
 **After a feature ships:**
 ```
 /cleanup
 ```
-Claude reviews the architecture and proposes any refactor slices before the next feature starts.
+The agent reviews the architecture and proposes refactor slices (to the idea backlog) before the next feature starts. Cleanup is never mixed with feature work.
 
 **New to the project:**
 ```
 /onboard
 ```
-Claude reads everything and gives you a complete picture of the project, then guides you to your first action.
+The agent reads everything and gives you a complete picture of the project, then guides you to your first action.
 
 ## Philosophy
 
-- **Developer always in the loop** — you approve every plan before execution starts
-- **Autonomous execution** — once approved, Claude runs without interruption unless your judgment is required
-- **Durable artifacts** — every decision is documented; any session can resume without chat history
-- **Vertical slices** — every unit of work is independently testable and produces observable behavior
-- **TDD enforced** — tests are written before implementation, always
-- **Clean architecture** — module independence, test co-location, reuse before create
+- **Developer always in the loop** — you approve every plan before execution starts.
+- **Autonomous execution** — once approved, the agent runs uninterrupted unless your judgment is required.
+- **Durable artifacts** — every decision is documented; any session resumes without chat history.
+- **Vertical slices** — every unit of work is independently testable and produces observable behavior.
+- **TDD enforced** — tests are written before implementation, always.
+- **Clean architecture** — module independence, test co-location, reuse before create.
 
 ## Requirements
 
-- Claude Code with sub-agent support
-- Git (for worktree-based parallel execution)
-- A project with a `dev` branch as the integration branch
+- An AI coding agent. Skills install as Claude Code slash commands; any AGENTS.md-aware agent can follow the same workflow by reading the files.
+- Parallel execution needs sub-agent + git-worktree support; otherwise slices run sequentially.
+- Git. `/implement` asks you to confirm the base branch before branching (no hard-coded `main`/`dev`).
 
 ## References
 

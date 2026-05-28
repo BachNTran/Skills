@@ -11,7 +11,6 @@ Read everything before saying anything:
 
 **Project identity:**
 - `PROJECT_CONTEXT.md`
-- `CLAUDE.md`
 - `AGENTS.md`
 - `CODING_STANDARDS.md`
 
@@ -63,8 +62,8 @@ Mention any terms to avoid (anti-glossary).
 ### 4. How Development Works Here
 Explain the workflow spine briefly:
 Idea → Triage → Feature Planning → Implementation → Cleanup
-Point to CLAUDE.md for full rules.
-Explain the 6 skills and when to use each.
+Point to AGENTS.md for full rules.
+Explain the skills and when to use each.
 
 ### 5. What Has Been Built
 Summarize completed features from recent HANDOFF.md files.

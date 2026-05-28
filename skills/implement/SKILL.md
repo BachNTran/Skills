@@ -1,14 +1,14 @@
 ---
 name: implement
-description: Execute an approved feature plan. Activates waves of parallel sub-agents that run TDD autonomously in isolated git worktrees. Stops only on D-type blockers requiring human decision. Use after /feature has produced an approved ISSUE_PLAN.md.
+description: Execute an approved feature plan wave by wave, running TDD autonomously (parallel sub-agents in isolated worktrees where supported, otherwise sequential). Stops only on blockers that need a human decision. Use after /feature has produced an approved ISSUE_PLAN.md.
 ---
 
-You are the implementation orchestrator. Your job is to execute an approved feature plan using wave-based parallel sub-agents, each running TDD in an isolated git worktree. You stop only when the developer's decision is required.
+You are the implementation orchestrator. Your job is to execute an approved feature plan wave by wave, each slice running TDD. Where the agent supports parallel sub-agents, run one per slice in its own git worktree; otherwise run slices sequentially. You stop only when the developer's decision is required.
 
 ## On Start
 
 Read in order:
-1. `CLAUDE.md`
+1. `AGENTS.md`
 2. `DEV_TRACKER.md` — which feature is active?
 3. `docs/features/FEAT-[NNNN]/ISSUE_PLAN.md` — wave groups and slice order
 4. `docs/features/FEAT-[NNNN]/PRD.md`
@@ -22,13 +22,17 @@ Confirm: ISSUE_PLAN.md status is `approved`. If not approved — stop, run /feat
 
 ## PHASE 7 — WAVE ACTIVATION
 
-### Create Feature Branch and Worktree
+### Confirm Base Branch, then Create Feature Branch and Worktree
+
+Detect the current branch (`git rev-parse --abbrev-ref HEAD`) and ask the developer: "Use `[current-branch]` as the base for FEAT-[NNNN], or branch off a different one?" Do not touch the current branch directly — branch off whatever the developer confirms.
 
 ```bash
-git checkout dev
-git checkout -b feature/FEAT-[NNNN]-[slug]
+# After the developer confirms the base branch as $BASE
+git checkout -b feature/FEAT-[NNNN]-[slug] "$BASE"
 git worktree add .worktrees/FEAT-[NNNN] feature/FEAT-[NNNN]-[slug]
 ```
+
+Record the confirmed base in `DEV_TRACKER.md` so PHASE 12 knows the merge target.
 
 ### Update DEV_TRACKER.md
 
@@ -47,11 +51,11 @@ If overlap found → sequence those slices, do not parallelize.
 
 ### Per Wave
 
-For each wave, spawn one sub-agent per slice in parallel. Each sub-agent:
+For each wave, run its slices — one parallel sub-agent per slice where supported, otherwise sequentially. Each slice:
 
 **Startup (shared context — cache-friendly, load once):**
 - `PROJECT_CONTEXT.md`
-- `CLAUDE.md` / `AGENTS.md`
+- `AGENTS.md`
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/architecture/CONTEXT.md`
 - `docs/features/FEAT-[NNNN]/PRD.md`
@@ -195,47 +199,7 @@ Regression: PASS
 
 ## PHASE 10 — HANDOFF (updated per wave)
 
-After each wave completes, update `docs/features/FEAT-[NNNN]/HANDOFF.md`:
-
-```markdown
----
-feature: FEAT-[NNNN]
-updated: [YYYY-MM-DD]
-wave-completed: [N]
----
-
-# Handoff: FEAT-[NNNN]
-
-## Current State
-Done: [completed slices]
-In progress: [current wave]
-Remaining: [pending waves and slices]
-
-## Completed Slices
-| Slice | Behavior | Test evidence |
-
-## Next Wave
-Recommended: Wave [N+1]
-Slices: [list]
-Why: [dependency reason]
-
-## Important Decisions
-| Decision | Where recorded |
-
-## Relevant Files
-| File | Why it matters |
-
-## Known Risks
-[from RISK_LOG.md]
-
-## How to Resume
-1. Read PROJECT_CONTEXT.md
-2. Read CLAUDE.md
-3. Read DEV_TRACKER.md
-4. Read this HANDOFF.md
-5. Run regression suite — confirm clean
-6. Continue from Wave [N+1]
-```
+After each wave completes, update `docs/features/FEAT-[NNNN]/HANDOFF.md` using the structure in [`templates/HANDOFF_TEMPLATE.md`](templates/HANDOFF_TEMPLATE.md).
 
 ---
 
@@ -265,7 +229,7 @@ When all waves complete:
 □ Project-level RISK_LOG.md updated if risks have broader scope
 ```
 
-Create merge request: `feature/FEAT-[NNNN]-[slug]` → `dev`
+Create merge request: `feature/FEAT-[NNNN]-[slug]` → the base branch confirmed at PHASE 7 (recorded in `DEV_TRACKER.md`).
 
 Update DEV_TRACKER.md — move feature from Active to Pending MR.
 

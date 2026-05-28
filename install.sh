@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# install.sh — install AI-assisted development workflow skills for Claude Code
+# install.sh — install the AI-assisted development workflow
+#               (Claude Code slash-command skills + tool-agnostic project docs)
 
 set -euo pipefail
 
@@ -52,8 +53,9 @@ install_skills() {
   for skill_dir in "$SKILLS_SRC"/*/; do
     skill_name="$(basename "$skill_dir")"
     dest="$target/$skill_name"
+    rm -rf "$dest"
     mkdir -p "$dest"
-    cp "$skill_dir/SKILL.md" "$dest/SKILL.md"
+    cp -R "$skill_dir"* "$dest"/
     echo "  installed: /$skill_name"
     count=$((count + 1))
   done
@@ -85,13 +87,21 @@ bootstrap_project() {
     fi
   done
 
+  # Copy architecture guide
+  if [ ! -f "docs/architecture/README.md" ]; then
+    cp "$TEMPLATES_SRC/architecture/README.md" "docs/architecture/README.md"
+    echo "  created:  docs/architecture/README.md"
+  else
+    echo "  skipped:  docs/architecture/README.md (already exists — not overwritten)"
+  fi
+
   echo ""
   echo "✓ Project structure ready"
   echo ""
   echo "Next steps:"
   echo "  1. Fill in PROJECT_CONTEXT.md — describe your project"
   echo "  2. Fill in CODING_STANDARDS.md — your language and linter"
-  echo "  3. Open Claude Code and type /workflow"
+  echo "  3. Open Claude Code and type /workflow — or point any AGENTS.md-aware agent at AGENTS.md"
 }
 
 # Require argument
