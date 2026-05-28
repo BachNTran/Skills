@@ -26,7 +26,7 @@ Candidate skills to consider adding to this workflow. Parking lot — not commit
 
 **Problem:** `/implement` writes `HANDOFF.md` after every wave so a developer can resume after a break, but the workflow has no dedicated resume skill. `/workflow`'s state detection partially covers it; `/onboard` is for new developers (too verbose for a returning one).
 
-**Sketch:** read `docs/features/[active]/HANDOFF.md` → run the regression suite → surface any drift since the last wave → give one clear next action.
+**Sketch:** read `ProjectManagement/features/[active]/HANDOFF.md` → run the regression suite → surface any drift since the last wave → give one clear next action.
 
 **Artifacts:** none new — this skill consumes existing `HANDOFF.md`.
 
@@ -36,7 +36,7 @@ Candidate skills to consider adding to this workflow. Parking lot — not commit
 
 **Problem:** when a feature ships (or an incident happens), the team learns things — but those lessons aren't reliably captured. Especially painful for hardware: errata, timing constraints, and integration gotchas rediscovered every project.
 
-**Sketch:** walk the developer through what worked, what failed, what we'll do differently. Output appends to `docs/knowledge-base/` (durable lessons) and `RISK_LOG.md` (active risks).
+**Sketch:** walk the developer through what worked, what failed, what we'll do differently. Output appends to `docs/knowledge-base/` (durable lessons) and `ProjectManagement/RISK_LOG.md` (active risks).
 
 **Artifacts:** `docs/postmortems/POSTMORTEM-NNNN-slug.md`.
 

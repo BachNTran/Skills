@@ -11,21 +11,29 @@ TEMPLATES_SRC="$SCRIPT_DIR/templates"
 GLOBAL_SKILLS="$HOME/.claude/skills"
 PROJECT_SKILLS=".claude/skills"
 
-DOCS_DIRS=(
-  "docs/ideas"
+# Directories created on bootstrap.
+# ProjectManagement/ holds transient work-tracking artifacts (ideas, features, roadmap, risks).
+# docs/ holds durable context (architecture, decisions, hardware knowledge).
+PROJECT_DIRS=(
+  "ProjectManagement/ideas"
+  "ProjectManagement/features"
   "docs/architecture"
   "docs/decisions"
   "docs/knowledge-base"
-  "docs/features"
 )
 
+# Permanent context files at project root.
 ROOT_TEMPLATES=(
   "CLAUDE.md"
   "AGENTS.md"
   "PROJECT_CONTEXT.md"
+  "CODING_STANDARDS.md"
+)
+
+# Work-tracking files placed under ProjectManagement/.
+PROJECTMGMT_TEMPLATES=(
   "ROADMAP.md"
   "DEV_TRACKER.md"
-  "CODING_STANDARDS.md"
   "RISK_LOG.md"
 )
 
@@ -66,24 +74,35 @@ install_skills() {
 
 bootstrap_project() {
   echo ""
-  echo "Bootstrapping project docs structure..."
+  echo "Bootstrapping project structure..."
   echo ""
 
-  # Create docs directories
-  for dir in "${DOCS_DIRS[@]}"; do
+  # Create directories
+  for dir in "${PROJECT_DIRS[@]}"; do
     mkdir -p "$dir"
     echo "  created:  $dir/"
   done
 
   echo ""
 
-  # Copy root template files (skip if already exist)
+  # Copy permanent context files to project root (skip if already exist)
   for file in "${ROOT_TEMPLATES[@]}"; do
     if [ ! -f "$file" ]; then
       cp "$TEMPLATES_SRC/$file" "$file"
       echo "  created:  $file"
     else
       echo "  skipped:  $file (already exists — not overwritten)"
+    fi
+  done
+
+  # Copy work-tracking files to ProjectManagement/ (skip if already exist)
+  for file in "${PROJECTMGMT_TEMPLATES[@]}"; do
+    dest="ProjectManagement/$file"
+    if [ ! -f "$dest" ]; then
+      cp "$TEMPLATES_SRC/$file" "$dest"
+      echo "  created:  $dest"
+    else
+      echo "  skipped:  $dest (already exists — not overwritten)"
     fi
   done
 
