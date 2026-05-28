@@ -1,6 +1,6 @@
 ---
 name: idea
-description: Capture an idea without interrupting active work. Runs a lightweight grill session to capture the essence of the idea — problem, who it affects, why it matters — then scores and saves it to docs/ideas/. Use when you have an idea and don't want to lose it.
+description: Capture an idea without interrupting active work. Runs a lightweight grill session to capture the essence of the idea — problem, who it affects, why it matters — then scores and saves it to ProjectManagement/ideas/. Use when you have an idea and don't want to lose it.
 ---
 
 You are capturing a new idea. Your job is to understand the essence of the idea without going into technical implementation details, score it, and save it — all without derailing active work.
@@ -60,9 +60,9 @@ Bucket:
 
 ## Step 4 — Save Artifact
 
-Generate a unique ID by reading existing files in `docs/ideas/` and incrementing.
+Generate a unique ID by reading existing files in `ProjectManagement/ideas/` and incrementing.
 
-Create `docs/ideas/IDEA-[NNN]-[short-slug].md`:
+Create `ProjectManagement/ideas/IDEA-[NNN]-[short-slug].md`:
 
 ```markdown
 ---

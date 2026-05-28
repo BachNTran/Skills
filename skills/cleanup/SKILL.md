@@ -114,7 +114,7 @@ For each identified problem, propose a refactor slice:
 - Test-protected — must have tests that prove behavior unchanged before refactoring
 - Independent — does not depend on in-progress feature work
 
-Submit proposed slices to idea backlog (`docs/ideas/`) — not directly to ROADMAP.md.
+Submit proposed slices to idea backlog (`ProjectManagement/ideas/`) — not directly to ProjectManagement/ROADMAP.md.
 Developer triages like any other idea.
 
 ## Report
@@ -127,7 +127,7 @@ Test health issues:      [N]
 Standards drift:         [N] files
 
 Proposed refactor slices: [N]
-  → Added to docs/ideas/ for triage
+  → Added to ProjectManagement/ideas/ for triage
 
 High priority:
   [top 1-2 items with one-line summary]
