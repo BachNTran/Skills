@@ -26,6 +26,27 @@ You capture ideas without interrupting active work. The agent grills you on each
 
 When in doubt, run `/workflow` and the agent tells you the next step. (Agents without slash commands: point them at the matching file under `skills/`.)
 
+## Context Cost
+
+Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tokenizer is similar; values are within ~10%).
+
+| Skill        |   Hint¹ |   Body² |  Lazy templates³ |
+|--------------|--------:|--------:|-----------------:|
+| `/workflow`  |      45 |     607 | —                |
+| `/idea`      |      56 |     868 | —                |
+| `/triage`    |      47 |     576 | —                |
+| `/feature`   |      52 |   2,312 | 651  (4 files)   |
+| `/implement` |      51 |   1,939 | 183  (1 file)    |
+| `/cleanup`   |      49 |     897 | —                |
+| `/onboard`   |      54 |     983 | —                |
+| **Total**    | **354** | **8,182** | **834**        |
+
+¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
+² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.
+³ **Lazy templates** — per-phase template files (PRD, slice, ISSUE_PLAN, TEST_PLAN_DIMENSIONS, HANDOFF) that load only when the corresponding phase runs. They live under `skills/<skill>/templates/` and travel with the skill on install.
+
+Reproduce: `python3 -c "import tiktoken; e=tiktoken.get_encoding('cl100k_base'); ...` over `skills/**/*.md`.
+
 ## Install
 
 ```bash
