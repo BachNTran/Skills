@@ -53,8 +53,9 @@ install_skills() {
   for skill_dir in "$SKILLS_SRC"/*/; do
     skill_name="$(basename "$skill_dir")"
     dest="$target/$skill_name"
+    rm -rf "$dest"
     mkdir -p "$dest"
-    cp "$skill_dir/SKILL.md" "$dest/SKILL.md"
+    cp -R "$skill_dir"* "$dest"/
     echo "  installed: /$skill_name"
     count=$((count + 1))
   done
@@ -85,6 +86,14 @@ bootstrap_project() {
       echo "  skipped:  $file (already exists — not overwritten)"
     fi
   done
+
+  # Copy architecture guide
+  if [ ! -f "docs/architecture/README.md" ]; then
+    cp "$TEMPLATES_SRC/architecture/README.md" "docs/architecture/README.md"
+    echo "  created:  docs/architecture/README.md"
+  else
+    echo "  skipped:  docs/architecture/README.md (already exists — not overwritten)"
+  fi
 
   echo ""
   echo "✓ Project structure ready"

@@ -81,7 +81,7 @@ project-root/
 
 - An AI coding agent. Skills install as Claude Code slash commands; any AGENTS.md-aware agent can follow the same workflow by reading the files.
 - Parallel execution needs sub-agent + git-worktree support; otherwise slices run sequentially.
-- Git, and a project with a `dev` integration branch.
+- Git. `/implement` asks you to confirm the base branch before branching (no hard-coded `main`/`dev`).
 
 ## References
 

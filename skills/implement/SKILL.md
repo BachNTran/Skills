@@ -22,13 +22,17 @@ Confirm: ISSUE_PLAN.md status is `approved`. If not approved — stop, run /feat
 
 ## PHASE 7 — WAVE ACTIVATION
 
-### Create Feature Branch and Worktree
+### Confirm Base Branch, then Create Feature Branch and Worktree
+
+Detect the current branch (`git rev-parse --abbrev-ref HEAD`) and ask the developer: "Use `[current-branch]` as the base for FEAT-[NNNN], or branch off a different one?" Do not touch the current branch directly — branch off whatever the developer confirms.
 
 ```bash
-git checkout dev
-git checkout -b feature/FEAT-[NNNN]-[slug]
+# After the developer confirms the base branch as $BASE
+git checkout -b feature/FEAT-[NNNN]-[slug] "$BASE"
 git worktree add .worktrees/FEAT-[NNNN] feature/FEAT-[NNNN]-[slug]
 ```
+
+Record the confirmed base in `DEV_TRACKER.md` so PHASE 12 knows the merge target.
 
 ### Update DEV_TRACKER.md
 
@@ -195,47 +199,7 @@ Regression: PASS
 
 ## PHASE 10 — HANDOFF (updated per wave)
 
-After each wave completes, update `docs/features/FEAT-[NNNN]/HANDOFF.md`:
-
-```markdown
----
-feature: FEAT-[NNNN]
-updated: [YYYY-MM-DD]
-wave-completed: [N]
----
-
-# Handoff: FEAT-[NNNN]
-
-## Current State
-Done: [completed slices]
-In progress: [current wave]
-Remaining: [pending waves and slices]
-
-## Completed Slices
-| Slice | Behavior | Test evidence |
-
-## Next Wave
-Recommended: Wave [N+1]
-Slices: [list]
-Why: [dependency reason]
-
-## Important Decisions
-| Decision | Where recorded |
-
-## Relevant Files
-| File | Why it matters |
-
-## Known Risks
-[from RISK_LOG.md]
-
-## How to Resume
-1. Read PROJECT_CONTEXT.md
-2. Read AGENTS.md
-3. Read DEV_TRACKER.md
-4. Read this HANDOFF.md
-5. Run regression suite — confirm clean
-6. Continue from Wave [N+1]
-```
+After each wave completes, update `docs/features/FEAT-[NNNN]/HANDOFF.md` using the structure in [`templates/HANDOFF_TEMPLATE.md`](templates/HANDOFF_TEMPLATE.md).
 
 ---
 
@@ -265,7 +229,7 @@ When all waves complete:
 □ Project-level RISK_LOG.md updated if risks have broader scope
 ```
 
-Create merge request: `feature/FEAT-[NNNN]-[slug]` → `dev`
+Create merge request: `feature/FEAT-[NNNN]-[slug]` → the base branch confirmed at PHASE 7 (recorded in `DEV_TRACKER.md`).
 
 Update DEV_TRACKER.md — move feature from Active to Pending MR.
 

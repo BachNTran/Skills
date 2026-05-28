@@ -35,13 +35,27 @@ When unsure, run /workflow. (Agents without slash-command support: read the matc
 3. DEV_TRACKER.md
 4. ROADMAP.md if no active work, else docs/features/[active]/HANDOFF.md
 
+## Architecture Docs
+
+Default paths used by the workflow skills. If you rename or relocate any of these to match your project's naming convention, update this table — the agent reads this section to find the actual files.
+
+| Doc                  | Default path                                |
+|----------------------|---------------------------------------------|
+| System overview      | `docs/architecture/ARCHITECTURE.md`         |
+| Module map           | `docs/architecture/MODULE_MAP.md`           |
+| Shared language      | `docs/architecture/CONTEXT.md`              |
+| Glossary             | `docs/architecture/GLOSSARY.md`             |
+| Architecture review  | `docs/architecture/ARCHITECTURE_REVIEW.md`  |
+
+See `docs/architecture/README.md` for what to put in each.
+
 ## Hard Rules
 
 1. No code without an approved ISSUE_PLAN.md
 2. No ISSUE_PLAN without an approved PRD and TEST_PLAN
 3. No PRD without an approved BRIEF
 4. New ideas go to docs/ideas/ — never interrupt active work
-5. One feature active at a time; one feature branch per feature, off dev
+5. One feature active at a time; one feature branch per feature, off the developer-confirmed base (default: the current branch — `/implement` asks before branching)
 6. Tests written before implementation (TDD red/green/refactor)
 7. Tests co-located with code (per project convention)
 8. Test doubles never inline — always in shared files
