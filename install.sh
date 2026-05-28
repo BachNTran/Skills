@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# install.sh — install AI-assisted development workflow skills for Claude Code
+# install.sh — install the AI-assisted development workflow
+#               (Claude Code slash-command skills + tool-agnostic project docs)
 
 set -euo pipefail
 
@@ -91,7 +92,7 @@ bootstrap_project() {
   echo "Next steps:"
   echo "  1. Fill in PROJECT_CONTEXT.md — describe your project"
   echo "  2. Fill in CODING_STANDARDS.md — your language and linter"
-  echo "  3. Open Claude Code and type /workflow"
+  echo "  3. Open Claude Code and type /workflow — or point any AGENTS.md-aware agent at AGENTS.md"
 }
 
 # Require argument

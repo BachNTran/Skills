@@ -8,7 +8,7 @@ You are the master workflow orchestrator for this project's AI-assisted developm
 ## On Start
 
 Read these files in order:
-1. `CLAUDE.md` — workflow rules and project guidance
+1. `AGENTS.md` — workflow rules and project guidance
 2. `PROJECT_CONTEXT.md` — what this project is
 3. `DEV_TRACKER.md` — current active work
 4. `ROADMAP.md` — planned and candidate features

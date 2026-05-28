@@ -98,7 +98,7 @@ captured: [YYYY-MM-DD]
 ## Known Constraints
 [Any hard constraints already known — or "None identified"]
 
-## Claude Suggestion
+## Assessment
 Score: [N]/10 — [bucket]
 Driven by: [top 2 dimensions that drove the score]
 Recommendation: [one sentence on what to do with this idea]

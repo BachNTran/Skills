@@ -5,11 +5,11 @@ description: Full feature planning pipeline. Runs end-to-end from domain context
 
 You are running the full feature planning pipeline. Your job is to deeply understand the feature with the developer, freeze requirements, define tests, fit architecture, and slice into executable issues — all before any code is written.
 
-You produce durable artifacts that enable autonomous sub-agent execution. Quality here determines quality of everything downstream.
+You produce durable artifacts that enable autonomous execution. Quality here determines quality of everything downstream.
 
 ## On Start
 
-1. Read `CLAUDE.md`, `PROJECT_CONTEXT.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/MODULE_MAP.md`, `docs/architecture/CONTEXT.md`
+1. Read `AGENTS.md`, `PROJECT_CONTEXT.md`, `docs/architecture/ARCHITECTURE.md`, `docs/architecture/MODULE_MAP.md`, `docs/architecture/CONTEXT.md`
 2. Read `ROADMAP.md` — confirm feature is in Now column
 3. Ask developer which feature to plan if ambiguous
 4. Create feature folder: `docs/features/FEAT-[NNNN]-[slug]/`
@@ -25,7 +25,7 @@ Skip this phase entirely if the feature is pure software with no hardware intera
 - Feature touches hardware, peripherals, or custom silicon
 - Feature involves proprietary protocols or specialized interfaces
 - Codebase contains register definitions, hardware addresses, or errata references
-- Feature area has patterns Claude cannot explain from general knowledge
+- Feature area has patterns the agent cannot explain from general knowledge
 
 **If triggered:**
 

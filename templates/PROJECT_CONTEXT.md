@@ -54,4 +54,4 @@ The project should be:
 ## Current Development Workflow
 
 This project uses the AI-assisted development workflow.
-See [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md).
+See [AGENTS.md](AGENTS.md).

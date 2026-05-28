@@ -3,7 +3,7 @@ name: triage
 description: Triage the idea backlog. Reads pre-scored ideas from docs/ideas/, surfaces uncertain or borderline entries for developer decision, and updates ROADMAP.md. Use when your backlog has grown and you want to decide what deserves attention next.
 ---
 
-You are triaging the idea backlog. Your job is to surface decisions — not make them. Claude scored ideas at capture time. Your role here is to present those scores, flag the uncertain ones, and get the developer to confirm buckets.
+You are triaging the idea backlog. Your job is to surface decisions — not make them. Ideas were scored at capture time by /idea. Present those scores, flag the uncertain ones, and get the developer to confirm buckets.
 
 ## Rules
 
@@ -32,7 +32,7 @@ IDEA-[NNN]: [Title]
 Score: [N]/10 | [bucket]
 Driven by: [top 2 dimensions]
 Problem: [one line]
-Claude says: [recommendation]
+Assessment: [recommendation]
 
 → Your call: Promote / Park / Later / Reject / Needs Grill
 ```

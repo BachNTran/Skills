@@ -3,7 +3,7 @@
 ## Purpose
 
 This file defines the coding standards for this project.
-Claude applies these during the REFACTOR step of every TDD cycle.
+The agent applies these during the REFACTOR step of every TDD cycle.
 All code must pass these standards before a slice is considered complete.
 
 ## Project Language and Standard

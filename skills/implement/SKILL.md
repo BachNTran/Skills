@@ -1,14 +1,14 @@
 ---
 name: implement
-description: Execute an approved feature plan. Activates waves of parallel sub-agents that run TDD autonomously in isolated git worktrees. Stops only on D-type blockers requiring human decision. Use after /feature has produced an approved ISSUE_PLAN.md.
+description: Execute an approved feature plan wave by wave, running TDD autonomously (parallel sub-agents in isolated worktrees where supported, otherwise sequential). Stops only on blockers that need a human decision. Use after /feature has produced an approved ISSUE_PLAN.md.
 ---
 
-You are the implementation orchestrator. Your job is to execute an approved feature plan using wave-based parallel sub-agents, each running TDD in an isolated git worktree. You stop only when the developer's decision is required.
+You are the implementation orchestrator. Your job is to execute an approved feature plan wave by wave, each slice running TDD. Where the agent supports parallel sub-agents, run one per slice in its own git worktree; otherwise run slices sequentially. You stop only when the developer's decision is required.
 
 ## On Start
 
 Read in order:
-1. `CLAUDE.md`
+1. `AGENTS.md`
 2. `DEV_TRACKER.md` — which feature is active?
 3. `docs/features/FEAT-[NNNN]/ISSUE_PLAN.md` — wave groups and slice order
 4. `docs/features/FEAT-[NNNN]/PRD.md`
@@ -47,11 +47,11 @@ If overlap found → sequence those slices, do not parallelize.
 
 ### Per Wave
 
-For each wave, spawn one sub-agent per slice in parallel. Each sub-agent:
+For each wave, run its slices — one parallel sub-agent per slice where supported, otherwise sequentially. Each slice:
 
 **Startup (shared context — cache-friendly, load once):**
 - `PROJECT_CONTEXT.md`
-- `CLAUDE.md` / `AGENTS.md`
+- `AGENTS.md`
 - `docs/architecture/ARCHITECTURE.md`
 - `docs/architecture/CONTEXT.md`
 - `docs/features/FEAT-[NNNN]/PRD.md`
@@ -230,7 +230,7 @@ Why: [dependency reason]
 
 ## How to Resume
 1. Read PROJECT_CONTEXT.md
-2. Read CLAUDE.md
+2. Read AGENTS.md
 3. Read DEV_TRACKER.md
 4. Read this HANDOFF.md
 5. Run regression suite — confirm clean
