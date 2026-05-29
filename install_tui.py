@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import glob
 import os
 import re
 import shutil
@@ -75,10 +76,36 @@ def _load_skills() -> list[tuple[str, str, Path]]:
 
 # ── prompts ───────────────────────────────────────────────────────────────────
 
+def _path_completer(text: str, state: int) -> str | None:
+    expanded = os.path.expanduser(text)
+    matches = glob.glob(expanded + "*")
+    matches = [m + "/" if os.path.isdir(m) else m for m in sorted(matches)]
+    return matches[state] if state < len(matches) else None
+
+
 def prompt_project_path() -> Path:
+    try:
+        import readline
+        readline.set_completer_delims(" \t\n")
+        readline.set_completer(_path_completer)
+        # macOS ships libedit masquerading as readline; binding syntax differs
+        if "libedit" in (readline.__doc__ or ""):
+            readline.parse_and_bind("bind ^I rl_complete")
+        else:
+            readline.parse_and_bind("tab: complete")
+    except ImportError:
+        pass
+
     cwd = Path.cwd()
     raw = _read(f"  Project path [{cwd}]: ")
-    base = Path(raw) if raw else cwd
+
+    try:
+        import readline
+        readline.set_completer(None)
+    except ImportError:
+        pass
+
+    base = Path(os.path.expanduser(raw)) if raw else cwd
     if not base.exists():
         print(f"  Directory '{base}' does not exist. Creating it.")
         base.mkdir(parents=True, exist_ok=True)
