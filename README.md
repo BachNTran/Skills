@@ -49,10 +49,19 @@ Reproduce: `python3 -c "import tiktoken; e=tiktoken.get_encoding('cl100k_base');
 
 ## Install
 
+Run with no arguments for a guided TUI session (requires Python 3):
+
 ```bash
-./install.sh global      # all projects  → ~/.claude/skills/
-./install.sh project     # this project  → .claude/skills/
-./install.sh bootstrap   # project install + create project docs
+./install.sh
+```
+
+Or pass a target directly to skip the TUI:
+
+```bash
+./install.sh global      # all Claude Code sessions  → ~/.claude/skills/
+./install.sh codex       # all Codex sessions        → ~/.codex/skills/
+./install.sh project     # this project only         → .claude/skills/
+./install.sh bootstrap   # project install + scaffold project docs
 ```
 
 `bootstrap` also creates the project structure:
@@ -146,7 +155,8 @@ The agent reads everything and gives you a complete picture of the project, then
 
 ## Requirements
 
-- An AI coding agent. Skills install as Claude Code slash commands; any AGENTS.md-aware agent can follow the same workflow by reading the files.
+- An AI coding agent. Skills install as Claude Code slash commands; any AGENTS.md-aware agent (Codex, Cursor, …) can follow the same workflow by reading the files directly.
+- Python 3 (pre-installed on macOS and most Linux distros) — required for the installer only.
 - Parallel execution needs sub-agent + git-worktree support; otherwise slices run sequentially.
 - Git. `/implement` asks you to confirm the base branch before branching (no hard-coded `main`/`dev`).
 
