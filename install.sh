@@ -10,6 +10,7 @@ TEMPLATES_SRC="$SCRIPT_DIR/templates"
 
 GLOBAL_SKILLS="$HOME/.claude/skills"
 PROJECT_SKILLS=".claude/skills"
+CODEX_SKILLS="${CODEX_HOME:-$HOME/.codex}/skills"
 
 # Directories created on bootstrap.
 # ProjectManagement/ holds transient work-tracking artifacts (ideas, features, roadmap, risks).
@@ -38,10 +39,13 @@ PROJECTMGMT_TEMPLATES=(
 )
 
 usage() {
-  echo "Usage: ./install.sh [global|project|bootstrap]"
+  echo "Usage: ./install.sh [global|project|bootstrap|codex]"
   echo ""
   echo "  global     Install skills globally (~/.claude/skills/)"
   echo "             Available in all Claude Code sessions on this machine"
+  echo ""
+  echo "  codex      Install skills globally (~/.codex/skills/)"
+  echo "             Available in all Codex sessions on this machine"
   echo ""
   echo "  project    Install skills to current project (.claude/skills/)"
   echo "             Available only in this project"
@@ -134,6 +138,13 @@ case "$1" in
     install_skills "$GLOBAL_SKILLS"
     echo ""
     echo "Open any Claude Code session and type /workflow to get started."
+    ;;
+
+  codex)
+    echo "Installing skills to Codex..."
+    install_skills "$CODEX_SKILLS"
+    echo ""
+    echo "Open any Codex session and use /workflow to get started."
     ;;
 
   project)
