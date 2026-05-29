@@ -25,10 +25,10 @@ def _codex_home() -> Path:
 
 
 TARGETS = [
-    ("Global — Claude Code", lambda: Path.home() / ".claude/skills"),
-    ("Global — Codex",       lambda: _codex_home() / "skills"),
-    ("This project",         lambda: Path(".claude/skills")),
-    ("Bootstrap this project", None),
+    ("Global — Claude Code",                              lambda: Path.home() / ".claude/skills"),
+    ("Global — Codex",                                    lambda: _codex_home() / "skills"),
+    ("A project  (skills only)",                          "project"),
+    ("Bootstrap a project  (skills + scaffold docs)",     "bootstrap"),
 ]
 
 
@@ -75,16 +75,31 @@ def _load_skills() -> list[tuple[str, str, Path]]:
 
 # ── prompts ───────────────────────────────────────────────────────────────────
 
-def prompt_target() -> tuple[str, Path | None]:
+def prompt_project_path() -> Path:
+    cwd = Path.cwd()
+    raw = _read(f"  Project path [{cwd}]: ")
+    base = Path(raw) if raw else cwd
+    if not base.exists():
+        print(f"  Directory '{base}' does not exist. Creating it.")
+        base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def prompt_target() -> tuple[str, Path, str]:
     print("\nWhere do you want to install?\n")
     for i, (label, path_fn) in enumerate(TARGETS, 1):
-        suffix = f"  ({path_fn()})" if path_fn else ""
+        suffix = f"  ({path_fn()})" if callable(path_fn) else ""
         print(f"  [{i}] {label}{suffix}")
     while True:
         raw = _read("\nChoice: ")
         if raw.isdigit() and 1 <= int(raw) <= len(TARGETS):
             label, path_fn = TARGETS[int(raw) - 1]
-            return label, path_fn() if path_fn else None
+            if callable(path_fn):
+                return label, path_fn(), "install"
+            # project or bootstrap — ask for path
+            base = prompt_project_path()
+            mode = path_fn  # "project" or "bootstrap"
+            return label, base / ".claude/skills", mode
         print(f"  Please enter a number between 1 and {len(TARGETS)}.")
 
 
@@ -147,27 +162,27 @@ def install_all(skills: list, target: Path) -> None:
 
 # ── bootstrap ─────────────────────────────────────────────────────────────────
 
-def bootstrap_project() -> None:
-    print("Bootstrapping project structure...\n")
+def bootstrap_project(base: Path) -> None:
+    print(f"Bootstrapping project structure in {base}...\n")
     for d in PROJECT_DIRS:
-        Path(d).mkdir(parents=True, exist_ok=True)
+        (base / d).mkdir(parents=True, exist_ok=True)
         print(f"  created:  {d}/")
     print()
     for fname in ROOT_TEMPLATES:
-        dest = Path(fname)
+        dest = base / fname
         if not dest.exists():
             shutil.copy(TEMPLATES_SRC / fname, dest)
             print(f"  created:  {fname}")
         else:
             print(f"  skipped:  {fname} (already exists)")
     for fname in PROJECTMGMT_TEMPLATES:
-        dest = Path("ProjectManagement") / fname
+        dest = base / "ProjectManagement" / fname
         if not dest.exists():
             shutil.copy(TEMPLATES_SRC / fname, dest)
             print(f"  created:  ProjectManagement/{fname}")
         else:
             print(f"  skipped:  ProjectManagement/{fname} (already exists)")
-    arch = Path("docs/architecture/README.md")
+    arch = base / "docs/architecture/README.md"
     if not arch.exists():
         shutil.copy(TEMPLATES_SRC / "architecture/README.md", arch)
         print(f"  created:  docs/architecture/README.md")
@@ -197,24 +212,22 @@ def run_cli(arg: str) -> None:
     print(f"Installing skills to {target}...")
     install_all(skills, target)
     if arg == "bootstrap":
-        bootstrap_project()
+        bootstrap_project(Path.cwd())
 
 
 # ── TUI entry ─────────────────────────────────────────────────────────────────
 
 def run_tui() -> None:
     print("\n── Skills Installer ──")
-    label, target = prompt_target()
+    label, target, mode = prompt_target()
+    skills = _load_skills()
+    selected = prompt_skills(skills)
 
-    if target is None:  # bootstrap
-        skills = _load_skills()
-        selected = prompt_skills(skills)
-        print(f"\nBootstrapping project + installing {len(selected)} skill(s)...\n")
-        install_all(selected, Path(".claude/skills"))
-        bootstrap_project()
+    if mode == "bootstrap":
+        print(f"\nBootstrapping + installing {len(selected)} skill(s) to {target}...\n")
+        install_all(selected, target)
+        bootstrap_project(target.parent.parent)  # base project dir
     else:
-        skills = _load_skills()
-        selected = prompt_skills(skills)
         print(f"\nInstalling {len(selected)} skill(s) to {target}...\n")
         install_all(selected, target)
         print("Done.")
