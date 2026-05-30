@@ -51,7 +51,57 @@ If overlap found → sequence those slices, do not parallelize.
 
 ### Per Wave
 
-For each wave, run its slices — one parallel sub-agent per slice where supported, otherwise sequentially. Each slice:
+For each wave, run its slices — one parallel sub-agent per slice where supported, otherwise sequentially. Each slice runs on one worker (see below).
+
+### Worker Selection (Claude or Codex)
+
+Pick a worker per slice. You decide — do not ask the developer.
+
+- **Claude sub-agent** (default) — slices needing architecture judgment, ambiguous placement, or tight coupling to in-flight Claude work.
+- **Codex sub-agent** — bounded grunt work: straightforward TDD implementation, test authoring, mechanical refactor. Offloads the grind off Claude's context and runs full-auto.
+
+Choose Codex only when the slice is bounded, testable, and its Scope/Non-Scope files are **disjoint from every other concurrently-running slice** (this is the same overlap check from PHASE 7 — it is the invariant that keeps parallel merges clean). Choose Claude otherwise.
+
+Concurrency cap: at most **4** Codex sub-agents running at once (configurable). Queue the rest.
+
+### Codex Slice Delegation
+
+Spawn one Codex worker per slice via the Agent tool — **not** the `/codex:rescue` command (that fires an interactive resume/fresh prompt):
+
+```
+Agent(
+  subagent_type: "codex:codex-rescue",
+  isolation: "worktree",      # or bind cwd to .worktrees/FEAT-[NNNN]-S[NNN] — verify cwd plumbing on first run
+  run_in_background: true,
+  prompt: <slice packet from S[NNN].md: Behavior, Scope (allowed), Non-Scope,
+           Acceptance Criteria, Test Command, File Budget — one slice per run>
+)
+```
+
+Spawning the subagent directly bypasses the resume/fresh prompt, so Codex runs with no approval question. Codex is write-capable by default and must be in a non-interactive auto-approve mode so it does not block on its own per-edit prompts.
+
+Codex is fully automated — it never asks the developer for approval. When it returns, **Claude adjudicates on evidence** (PHASE 9), it does not take Codex's word.
+
+**Hard stops — escalate to the developer as a D-type blocker only when:**
+
+| Condition | Action |
+|---|---|
+| Slice fails its gate twice | One re-delegate with tighter scope, then stop |
+| Codex needs an out-of-scope file or a new dependency | Stop — violates the disjointness invariant |
+| Codex output contradicts PRD/TEST_PLAN | Stop — the spec is developer-owned |
+| Concurrency cap (4) reached | Queue, do not exceed |
+
+Everything else, Claude resolves itself without asking.
+
+### While Codex Runs (monitoring + parallel work)
+
+Backgrounded Codex workers free the main thread. While they grind:
+
+- **Know when it finishes:** background workers auto-notify the session on completion — you are not left guessing. The orchestrator reports each slice as it lands.
+- **Watch it live:** every Codex job appends a timestamped progress log to its own `<job-id>.log` file (under `$CLAUDE_PLUGIN_DATA/state/<workspace-basename>-<hash>/jobs/`, where `<hash>` is a sha256 of the workspace path — so the path is **not** hand-guessable). The reliable way to surface it: `/codex:status <id> --wait` blocks and prints each new progress entry as it lands; plain `/codex:status` shows all jobs as a table. On spawning each worker the orchestrator must print that worker's **job id** so you can `/codex:status <id> --wait` it. If you want a raw `tail -f`, ask and the orchestrator will read the job's stored `logFile` path from its state record and hand you the exact command.
+- **Fullest view:** `/codex:result <id>` returns a Codex session ID — `codex resume <session-id>` attaches to that exact run to watch its reasoning and edits live. The progress log is a phase-level heartbeat (started / thinking / editing / testing), not full chain-of-thought; use `resume` when you want to see everything.
+- **Keep planning:** the orchestrator may run planning work — `/feature` grilling, slicing, PRD/test-plan — for the next feature while Codex implements the current one. That writes to `ProjectManagement/` docs, never the slice code in Codex's worktrees, so it cannot collide.
+- **Do not** start a Claude code-writing slice on files that overlap a running Codex worktree. Non-writing work only, or disjoint files.
 
 **Startup (shared context — cache-friendly, load once):**
 - `PROJECT_CONTEXT.md`
@@ -168,7 +218,9 @@ Next slice unblocked: [list]
 
 ## PHASE 9 — AUTOMATED SLICE REVIEW
 
-After each slice completion report:
+After each slice completion report. Applies to every slice regardless of worker.
+
+For **Codex** slices, Claude re-runs the slice Test Command **and** the regression suite **in the slice worktree** before trusting any result — a Codex "pass" claim is not evidence.
 
 **Automated checks (no human needed):**
 ```
