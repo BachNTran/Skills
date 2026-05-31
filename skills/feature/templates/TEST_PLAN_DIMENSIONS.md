@@ -13,6 +13,20 @@ For each test case in the plan, think through:
 - **Observability:** can a test assert this result without human eyes?
 - **Time:** too early, too late, expired, wrong clock, unexpected ordering
 
+## Test levels (pyramid — cover all three)
+
+- **Unit (white-box):** every public function and every branch/edge path. The base and bulk of cases.
+- **Integration:** every subsystem seam / contract boundary, real collaborators where feasible.
+- **E2E:** full path proving success criteria; add golden-master + determinism for deterministic systems.
+
+## Traceability & coverage
+
+- Forward: every REQ-### → ≥1 test case.
+- Reverse: every public function/branch → ≥1 unit test; every case names its REQ-###; orphan tests flagged.
+- Maintain a matrix: REQ-ID ↔ test-case ID ↔ level ↔ test file path.
+- Coverage gate: new/changed modules ≥90% line AND branch, enforced in CI (`pytest --cov --cov-branch --cov-fail-under=90`).
+- Parameterize as a range/equivalence class (with boundaries), never duplicated rows.
+
 For hardware / embedded projects, also cover:
 
 - Endianness and byte order
