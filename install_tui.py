@@ -35,19 +35,64 @@ TARGETS = [
 
 # ── frontmatter ──────────────────────────────────────────────────────────────
 
+def _frontmatter(skill_md: Path) -> str | None:
+    if not skill_md.exists():
+        return None
+    content = skill_md.read_text(encoding="utf-8")
+    match = re.search(r"\A---\n(.*?)\n---(?:\n|\Z)", content, re.DOTALL)
+    return match.group(1) if match else None
+
+
 def _parse_description(skill_dir: Path) -> str:
     skill_md = skill_dir / "SKILL.md"
-    if not skill_md.exists():
+    frontmatter = _frontmatter(skill_md)
+    if frontmatter is None:
         return ""
-    content = skill_md.read_text(encoding="utf-8")
-    # Extract content between the two --- fences
-    match = re.search(r"^---\n(.*?)\n---", content, re.DOTALL)
-    if not match:
-        return ""
-    frontmatter = match.group(1)
     # Handle single-line and multi-line (folded/literal block) description
     desc_match = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE)
     return desc_match.group(1).strip() if desc_match else ""
+
+
+def _frontmatter_value(frontmatter: str, key: str) -> str | None:
+    match = re.search(rf"^{re.escape(key)}:\s*(.+)$", frontmatter, re.MULTILINE)
+    if not match:
+        return None
+    value = match.group(1).strip()
+    return value or None
+
+
+def validate_skill_dir(skill_dir: Path) -> list[str]:
+    errors = []
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists():
+        return [f"{skill_dir.name}: missing SKILL.md"]
+
+    frontmatter = _frontmatter(skill_md)
+    if frontmatter is None:
+        return [f"{skill_dir.name}: missing frontmatter delimited by ---"]
+
+    name = _frontmatter_value(frontmatter, "name")
+    if name is None:
+        errors.append(f"{skill_dir.name}: missing non-empty name")
+    elif name != skill_dir.name:
+        errors.append(f"{skill_dir.name}: name '{name}' must match directory name")
+
+    description = _frontmatter_value(frontmatter, "description")
+    if description is None:
+        errors.append(f"{skill_dir.name}: missing non-empty single-line description")
+
+    return errors
+
+
+def validate_all_skills(skills_src: Path = SKILLS_SRC) -> list[str]:
+    if not skills_src.exists():
+        return [f"{skills_src}: skills directory does not exist"]
+
+    errors = []
+    for skill_dir in sorted(skills_src.iterdir()):
+        if skill_dir.is_dir():
+            errors.extend(validate_skill_dir(skill_dir))
+    return errors
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -225,6 +270,16 @@ def bootstrap_project(base: Path) -> None:
 # ── CLI passthrough ───────────────────────────────────────────────────────────
 
 def run_cli(arg: str) -> None:
+    if arg == "validate":
+        errors = validate_all_skills()
+        if errors:
+            print("Skill validation failed:", file=sys.stderr)
+            for error in errors:
+                print(f"  - {error}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Validated {len(_load_skills())} skill(s).")
+        return
+
     skills = _load_skills()
     targets = {
         "global":    Path.home() / ".claude/skills",
@@ -233,7 +288,7 @@ def run_cli(arg: str) -> None:
         "bootstrap": Path(".claude/skills"),
     }
     if arg not in targets:
-        print(f"Unknown target '{arg}'. Valid: global, codex, project, bootstrap")
+        print(f"Unknown target '{arg}'. Valid: global, codex, project, bootstrap, validate")
         sys.exit(1)
     target = targets[arg]
     print(f"Installing skills to {target}...")

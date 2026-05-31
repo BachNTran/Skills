@@ -23,6 +23,8 @@ You capture ideas without interrupting active work. The agent grills you on each
 | `/implement` | Execute an approved feature plan (TDD → MR). |
 | `/cleanup` | Periodic architecture review and cleanup. |
 | `/onboard` | Walk a new or returning developer through the project. |
+| `/codex-delegate` | Hand one bounded ad-hoc task to Codex outside an approved feature plan. |
+| `/gemma-delegate` | Delegate bounded, test-driven local work to Gemma 4 26B MoE through `opencode --pure`. |
 
 When in doubt, run `/workflow` and the agent tells you the next step. (Agents without slash commands: point them at the matching file under `skills/`.)
 
@@ -32,14 +34,16 @@ Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tok
 
 | Skill        |   Hint¹ |   Body² |  Lazy templates³ |
 |--------------|--------:|--------:|-----------------:|
-| `/workflow`  |      45 |     607 | —                |
-| `/idea`      |      56 |     868 | —                |
-| `/triage`    |      47 |     576 | —                |
-| `/feature`   |      52 |   2,312 | 651  (4 files)   |
-| `/implement` |      51 |   1,939 | 183  (1 file)    |
-| `/cleanup`   |      49 |     897 | —                |
-| `/onboard`   |      54 |     983 | —                |
-| **Total**    | **354** | **8,182** | **834**        |
+| `/workflow`        |      45 |     574 | —                |
+| `/idea`            |      57 |     807 | —                |
+| `/triage`          |      51 |     529 | —                |
+| `/feature`         |      52 |   2,268 | 651  (4 files)   |
+| `/implement`       |      51 |   2,912 | 189  (1 file)    |
+| `/cleanup`         |      49 |     846 | —                |
+| `/onboard`         |      54 |     949 | —                |
+| `/codex-delegate`  |      54 |     443 | —                |
+| `/gemma-delegate`  |      51 |   1,470 | —                |
+| **Total**          | **464** | **10,798** | **840**        |
 
 ¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
 ² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.
@@ -62,6 +66,7 @@ Or pass a target directly to skip the TUI:
 ./install.sh codex       # all Codex sessions        → ~/.codex/skills/
 ./install.sh project     # this project only         → .claude/skills/
 ./install.sh bootstrap   # project install + scaffold project docs
+./install.sh validate    # validate skill frontmatter before installing
 ```
 
 `bootstrap` also creates the project structure:
@@ -131,6 +136,15 @@ The agent grills you until the vision is clear, then produces all planning artif
 /implement
 ```
 The agent confirms the base branch with you, then runs TDD on each slice — parallel sub-agents in isolated worktrees where supported, sequential otherwise. You only get interrupted on blockers.
+
+**Need ad-hoc delegation:**
+```
+/codex-delegate
+/gemma-delegate
+```
+Use Codex for one bounded coding task. Use local Gemma through `opencode --pure` for tightly scoped, test-driven work where the parent owns verification and integration.
+
+Gemma delegation benchmark: the successful local RangeMap calibration used 78,503 Gemma tokens over 285s while keeping the parent-visible artifact estimate to about 1,699 tokens. That is premium-token displacement, not total-token reduction. Details live in `skills/gemma-delegate/README.md`.
 
 **After a feature ships:**
 ```

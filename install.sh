@@ -8,6 +8,7 @@
 #   ./install.sh codex        — install globally for Codex (~/.codex/skills/)
 #   ./install.sh project      — install to current project (.claude/skills/)
 #   ./install.sh bootstrap    — install (project) + create full project docs structure
+#   ./install.sh validate     — validate skill frontmatter before installing
 
 set -euo pipefail
 
