@@ -93,10 +93,10 @@ Flag potential ADR needs — do not write ADR yet.
 Note: if feature fits cleanly in existing module with no boundary change, confirm and move on quickly.
 
 ### Branch 6: Test Strategy (architecture only)
-Propose test types per behavior (unit/integration/e2e) with justification.
+Propose test types per behavior across the full pyramid — unit (white-box, per function/branch), integration (per seam), e2e (success-criteria path) — with justification; do not settle for e2e-only.
 Decide mock/real per integration point.
 Identify regression risk: existing behavior at risk + covered by existing test?
-Define one verification command.
+Define one verification command and the coverage gate (≥90% line+branch on new modules).
 Do NOT define slice-level test commands here.
 
 ### Branch 7: Success Criteria
@@ -147,10 +147,26 @@ Generate a comprehensive draft test plan from PRD.md, then present it to the dev
 
 Load [`templates/TEST_PLAN_DIMENSIONS.md`](templates/TEST_PLAN_DIMENSIONS.md) now and apply every dimension to each test case (hardware section applies only to hardware/embedded projects).
 
-Parameterize when 3+ test cases share structure but differ only in inputs.
+**Cover the full test pyramid — never e2e-only:**
+- **Unit (white-box):** every public function and every branch/edge path gets a direct test. This is the base and the bulk of the cases.
+- **Integration:** every subsystem seam / contract boundary, exercised with real collaborators where feasible (mock only what the Branch 6 integration-point decision says to mock).
+- **E2E:** at least one full path proving the success criteria; for deterministic systems include a golden-master (commit a baseline result, assert future runs reproduce it) plus a determinism test (identical inputs → identical output/identity).
+
+**Traceability is bidirectional:**
+- Forward: every REQ-### → at least one test case.
+- Reverse: every public function/branch → at least one unit test, and every test case names the REQ-### it proves. Orphan tests (no REQ) are flagged and either linked or removed.
+- The plan carries a traceability matrix: REQ-ID ↔ test-case ID ↔ level (unit/integration/e2e) ↔ test file path.
+
+**Coverage gate — "green" must mean "covered":** new or changed modules must meet **≥90% line AND branch** coverage, enforced in CI (e.g. `pytest --cov=<module> --cov-branch --cov-fail-under=90`). A passing suite that leaves branches unhit is not done.
+
+**Parameterize as a range, not repetition:** when 3+ cases share structure and differ only in inputs, express them as ONE parameterized case stating the input **range / equivalence class** (with boundary values), not duplicated near-identical rows.
 
 Before asking for approval:
 - Every REQ-### has at least one test case
+- Every public function and every branch has a unit test (white-box base of the pyramid)
+- All three pyramid levels are present (unit + integration + e2e)
+- The traceability matrix is complete and bidirectional — no uncovered REQ, no orphan test
+- The coverage gate command is defined and meets ≥90% line+branch on new modules
 - Every failure mode has a test case
 - Every named edge case from Branch 4 is fully specified
 - No test case requires human judgment to evaluate pass/fail
