@@ -24,6 +24,7 @@ You capture ideas without interrupting active work. The agent grills you on each
 | `/cleanup` | Periodic architecture review and cleanup. |
 | `/onboard` | Walk a new or returning developer through the project. |
 | `/diagram` | Hand-author a clean Mermaid diagram (architecture, data-flow, sequence, call graph, deployment). General-purpose craft skill — works in any project, independent of the core workflow. |
+| `/sound-notify` | Set up macOS sound alerts: hear when Claude finishes a turn and when it needs your attention (a question or permission). General-purpose, independent of the core workflow. |
 
 When in doubt, run `/workflow` and the agent tells you the next step. (Agents without slash commands: point them at the matching file under `skills/`.)
 
@@ -41,7 +42,8 @@ Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tok
 | `/cleanup`   |      49 |     897 | —                |
 | `/onboard`   |      54 |     983 | —                |
 | `/diagram`   |      85 |   1,108 | —                |
-| **Total**    | **439** | **9,290** | **834**        |
+| `/sound-notify` |   86 |   1,114 | —                |
+| **Total**    | **525** | **10,404** | **834**        |
 
 ¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
 ² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.
