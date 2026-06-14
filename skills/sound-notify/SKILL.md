@@ -1,19 +1,19 @@
 ---
 name: sound-notify
-description: Set up macOS sound and/or spoken notifications for Claude Code so you hear when Claude finishes a turn and when it needs your attention (a question or a permission prompt). Wires a Stop hook and a Notification hook in settings.json to play a system chime and speak a phrase. Use when the user asks for sound/audio/voice alerts, a "ding when done", spoken notifications, or to be notified when Claude needs input.
+description: Set up macOS sound notifications for Claude Code so you hear when Claude finishes a turn and when it needs your attention (a question or a permission prompt). Wires a Stop hook and a Notification hook in settings.json to play a system chime. Use when the user asks for sound/audio alerts, a "ding when done", or to be notified when Claude needs input.
 ---
 
-# /sound-notify — macOS sound + speech alerts for Claude Code
+# /sound-notify — macOS sound alerts for Claude Code
 
-Play a macOS chime and/or speak a phrase on two events so you don't have to watch the terminal:
+Play a macOS chime on two events so you don't have to watch the terminal:
 
-- **Done** — Claude finishes responding (the `Stop` hook). Default: **Glass** chime + "Claude is done".
+- **Done** — Claude finishes responding (the `Stop` hook). Default: **Glass** chime.
 - **Attention** — Claude needs you: a question or a permission prompt (the `Notification`
-  hook). Default: **Funk** chime + "Claude needs your attention".
+  hook). Default: **Funk** chime.
 
-Playback is done by `scripts/claude-notify.sh`: `afplay` plays a chime from `/System/Library/Sounds`
-and `say` speaks the phrase. Delivery mode is `both` (chime then speech), `sound`, or `speech` via
-`CLAUDE_NOTIFY_MODE`. It runs detached and always exits 0, so it never delays or fails a turn.
+Playback is done by `scripts/claude-notify.sh`: `afplay` plays a chime from `/System/Library/Sounds`.
+Delivery defaults to chime-only (`sound`); set `CLAUDE_NOTIFY_MODE=both` or `speech` to also speak a
+phrase via `say`. It runs detached and always exits 0, so it never delays or fails a turn.
 
 ## When to use
 - The user wants an audible alert when Claude is done or is waiting on them.
@@ -72,14 +72,15 @@ them):
 
 | Variable                 | Controls                          | Default                          |
 |--------------------------|-----------------------------------|----------------------------------|
-| `CLAUDE_NOTIFY_MODE`     | `both` / `sound` / `speech`       | `both`                           |
+| `CLAUDE_NOTIFY_MODE`     | `sound` / `both` / `speech`       | `sound`                          |
 | `CLAUDE_SOUND_DONE`      | the "done" chime                  | `Glass`                          |
 | `CLAUDE_SOUND_ATTENTION` | the "attention" chime             | `Funk`                           |
 | `CLAUDE_SPEAK_DONE`      | the "done" phrase                 | `Claude is done`                 |
 | `CLAUDE_SPEAK_ATTENTION` | the "attention" phrase            | `Claude needs your attention`    |
 | `CLAUDE_NOTIFY_VOICE`    | `say` voice name                  | macOS system voice               |
 
-Set a chime to `off` to silence just its sound, or `CLAUDE_NOTIFY_MODE=sound` to drop speech entirely.
+Set a chime to `off` to silence just its sound. Speech is off by default; set
+`CLAUDE_NOTIFY_MODE=both` to add the spoken phrase or `speech` for voice only.
 
 ## How it works
 

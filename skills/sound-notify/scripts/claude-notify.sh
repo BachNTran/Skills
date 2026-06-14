@@ -6,8 +6,8 @@
 #   event = attention  Claude needs you — a question or permission (Notification hook)
 #
 # Delivery mode (env var CLAUDE_NOTIFY_MODE):
-#   both    chime then spoken phrase   (default)
-#   sound   chime only
+#   sound   chime only                 (default)
+#   both    chime then spoken phrase
 #   speech  spoken phrase only
 #
 # Chimes are macOS system sounds in /System/Library/Sounds (audition one with
@@ -28,7 +28,7 @@
 set -u
 
 event="${1:-done}"
-mode="${CLAUDE_NOTIFY_MODE:-both}"
+mode="${CLAUDE_NOTIFY_MODE:-sound}"
 
 case "$event" in
   attention)
