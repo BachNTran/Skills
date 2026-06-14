@@ -42,8 +42,8 @@ Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tok
 | `/cleanup`   |      49 |     897 | —                |
 | `/onboard`   |      54 |     983 | —                |
 | `/diagram`   |      85 |   1,108 | —                |
-| `/sound-notify` |   72 |     825 | —                |
-| **Total**    | **511** | **10,115** | **834**        |
+| `/sound-notify` |   86 |   1,114 | —                |
+| **Total**    | **525** | **10,404** | **834**        |
 
 ¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
 ² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.

@@ -1,40 +1,72 @@
 #!/usr/bin/env bash
-# claude-notify.sh — play a macOS sound for Claude Code hook events.
+# claude-notify.sh — macOS sound + speech alert for Claude Code hook events.
 #
 # Usage:  claude-notify.sh <event>
 #   event = done       Claude finished responding (Stop hook)
 #   event = attention  Claude needs you — a question or permission (Notification hook)
 #
-# Sounds are macOS system sounds in /System/Library/Sounds (play one to audition,
-# e.g. `afplay /System/Library/Sounds/Glass.aiff`). Override per event with env vars:
-#   CLAUDE_SOUND_DONE       (default: Glass)
-#   CLAUDE_SOUND_ATTENTION  (default: Funk)
-# Set a value to "off" to silence that event.
+# Delivery mode (env var CLAUDE_NOTIFY_MODE):
+#   both    chime then spoken phrase   (default)
+#   sound   chime only
+#   speech  spoken phrase only
+#
+# Chimes are macOS system sounds in /System/Library/Sounds (audition one with
+# `afplay /System/Library/Sounds/Glass.aiff`). Speech uses the macOS `say` command.
+#
+# Per-event overrides (set in your shell profile so hooks inherit them):
+#   CLAUDE_SOUND_DONE       chime for "done"        (default: Glass)
+#   CLAUDE_SOUND_ATTENTION  chime for "attention"   (default: Funk)
+#   CLAUDE_SPEAK_DONE       phrase for "done"       (default: "Claude is done")
+#   CLAUDE_SPEAK_ATTENTION  phrase for "attention"  (default: "Claude needs your attention")
+#   CLAUDE_NOTIFY_VOICE     `say` voice name        (default: macOS system voice)
+# Set a chime to "off" to silence just its sound. Download a nicer voice from
+# System Settings → Accessibility → Spoken Content, set it as the System voice,
+# and speech upgrades automatically (CLAUDE_NOTIFY_VOICE left unset uses it).
 #
 # The script always exits 0 so it can never block or fail a Claude Code turn.
 
 set -u
 
 event="${1:-done}"
+mode="${CLAUDE_NOTIFY_MODE:-both}"
 
 case "$event" in
-  done)      sound="${CLAUDE_SOUND_DONE:-Glass}" ;;
-  attention) sound="${CLAUDE_SOUND_ATTENTION:-Funk}" ;;
-  *)         sound="${CLAUDE_SOUND_DONE:-Glass}" ;;
+  attention)
+    sound="${CLAUDE_SOUND_ATTENTION:-Funk}"
+    phrase="${CLAUDE_SPEAK_ATTENTION:-Claude needs your attention}"
+    ;;
+  *)
+    sound="${CLAUDE_SOUND_DONE:-Glass}"
+    phrase="${CLAUDE_SPEAK_DONE:-Claude is done}"
+    ;;
 esac
 
-# Honor an explicit opt-out.
-[ "$sound" = "off" ] && exit 0
+play_chime() {
+  [ "$sound" = "off" ] && return
+  command -v afplay >/dev/null 2>&1 || return
+  local f="/System/Library/Sounds/${sound}.aiff"
+  [ -f "$f" ] || f="/System/Library/Sounds/Glass.aiff"
+  afplay "$f" >/dev/null 2>&1
+}
 
-# Only attempt playback on macOS with afplay available.
-if ! command -v afplay >/dev/null 2>&1; then
-  exit 0
-fi
+speak() {
+  [ -n "$phrase" ] || return
+  command -v say >/dev/null 2>&1 || return
+  if [ -n "${CLAUDE_NOTIFY_VOICE:-}" ]; then
+    say -v "$CLAUDE_NOTIFY_VOICE" "$phrase" >/dev/null 2>&1
+  else
+    say "$phrase" >/dev/null 2>&1
+  fi
+}
 
-sound_file="/System/Library/Sounds/${sound}.aiff"
-[ -f "$sound_file" ] || sound_file="/System/Library/Sounds/Glass.aiff"
-
-# Play detached so the hook returns immediately and never delays the turn.
-afplay "$sound_file" >/dev/null 2>&1 &
+# Run detached so the hook returns immediately and never delays the turn.
+# Chime first, then speech, so they don't overlap.
+{
+  case "$mode" in
+    sound)  play_chime ;;
+    speech) speak ;;
+    *)      play_chime; speak ;;
+  esac
+} >/dev/null 2>&1 &
 
 exit 0
