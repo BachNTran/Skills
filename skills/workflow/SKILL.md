@@ -94,6 +94,11 @@ Always accept natural language overrides:
 - "Start building" → run `/implement`
 - "Clean up the code" → run `/cleanup`
 - "Walk me through the project" → run `/onboard`
+- "Why does X exist?" / "What tests X?" / "How is X covered?" → **bottom-up walk**: open the
+  relevant feature's `TRACE.md` and follow code → TC → REQ → DEC, answering with the full
+  chain (test files, the requirement + its rationale, and the decision it came from). If
+  `TRACE.md` is stale, regenerate it first with `python3 tools/trace_index.py`.
+- "I don't like how X works" / "this is wrong" → run the complaint → revision loop (see AGENTS.md).
 
 ## Rules
 

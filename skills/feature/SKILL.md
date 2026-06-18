@@ -51,7 +51,9 @@ Create `docs/knowledge-base/[component-name]/DOMAIN_CONTEXT.md` and `HARDWARE_AC
 
 ## PHASE 3 — FEATURE GRILL
 
-Produce `BRIEF.md` by walking 9 branches, one at a time. Write each section of BRIEF.md as the branch resolves — do not wait until the end.
+Produce `BRIEF.md` by walking 9 branches. Write each section of BRIEF.md as the branch resolves — do not wait until the end.
+
+**Batch the questions.** Within a branch, ask every question you can at once; and where later branches don't depend on an earlier answer, present them together too. Only sequence a question when its answer genuinely gates the next. This spares the developer the mental cost of one-at-a-time ping-pong. Always offer a recommended answer.
 
 **Record decisions live.** The moment a branch resolves a real choice (a tradeoff, a rejected alternative, a boundary), append a `DEC-###` entry to `DECISIONS.md` — informal prose body, stable ID, who you converged with. Do not batch at the end. These IDs are what PRD requirements will link back to (`from: DEC-###`), and what powers the bottom-up walk later.
 

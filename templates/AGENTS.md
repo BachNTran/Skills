@@ -151,12 +151,27 @@ Regression PASS|FAIL / Reuse found / New doubles / Risks / Next slice unblocked
 
 Promoting an idea to the roadmap · approving BRIEF / PRD / TEST_PLAN / ISSUE_PLAN · D-type blockers during execution · architecture boundary changes · new dependencies · feature-close sign-off.
 
-## Responding to Common Requests
+## Intent Router — the developer never needs to remember a command
 
-- "I have an idea" → /idea immediately
-- "I want to add a feature" → check ProjectManagement/DEV_TRACKER.md, then /feature
-- "What should I work on?" → summarize ProjectManagement/ROADMAP.md Now column
-- "What's the status?" → summarize ProjectManagement/DEV_TRACKER.md
-- "Walk me through the project" → /onboard
-- "Start building" → /implement (confirm ISSUE_PLAN approved first)
-- "Clean up" → /cleanup
+The developer states intent in natural language. Classify it and run the matching phase
+yourself; do not make them recall a skill name. Slash commands remain as manual escape
+hatches, but should never be required.
+
+| The developer says…                                   | Intent    | You run                                                                 |
+|--------------------------------------------------------|-----------|-------------------------------------------------------------------------|
+| "I have an idea", a rubber-duck musing                 | IDEA      | /idea (capture only, don't derail active work)                          |
+| "add X", "build X", "I want a feature that…"           | ADD       | check DEV_TRACKER, then /feature                                        |
+| "change X", "X should instead…"                        | CHANGE    | /feature on the existing area — modify the PRD/tests, record new DEC    |
+| "remove X", "drop X"                                   | REMOVE    | /feature removal path — scan references first                           |
+| "why does X exist?", "what tests X?", "how is X covered?" | EXPLAIN | walk the trace: open the feature `TRACE.md`, follow code→TC→REQ→DEC, answer with the chain |
+| "I don't like how X works", "this is wrong"            | COMPLAINT | run the complaint→revision loop (see COMPLAINTS section)                |
+| "what should I do?", "status", "start building"        | NAVIGATE  | /workflow                                                               |
+| no scaffold, or `criticality:` unset                   | CONFIG    | /workflow → Config Grill                                                |
+
+## Grilling style
+
+Grill so understanding aligns and decisions get recorded — but ask **all the questions you
+can at once**, not one at a time, to spare the developer's focus. Only sequence a question
+when its answer genuinely changes the next one. Recommend an answer for each. The moment a
+choice converges, record a `DEC-###` (informal prose, stable ID) — accountability rests with
+the human who converged on it, not with you.
