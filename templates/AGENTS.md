@@ -25,6 +25,7 @@ Full pipeline: idea capture → triage → domain context (hardware only) → fe
 | /implement | Execute an approved feature plan (TDD → MR).      |
 | /cleanup   | Periodic architecture review and cleanup.         |
 | /onboard   | Walk a developer through the project.             |
+| /revise    | Turn a complaint about shipped behavior into a traced revision. |
 
 When unsure, run /workflow. (Agents without slash-command support: read the matching file under skills/ and follow it.)
 
@@ -107,6 +108,14 @@ At milestones (a slice merges, a feature closes) and whenever the developer corr
 2. If you learned a durable preference or received a correction, append it to `PREFERENCES.md`
    — and, if it is currently-true and high-value, to the **Active preferences** digest.
 3. Keep the digest small; move superseded items to the Retired section (never delete).
+
+## Complaints & Revision
+
+When the developer dislikes existing behavior, run `/revise`: confirm → log `CMP-###` → trace
+why it was built that way (walk `TRACE.md` / `DECISIONS.md`) → re-grill → supersede the old
+`DEC-###` → amend PRD/TEST_PLAN → offer to propagate the new pattern to `PREFERENCES.md` and
+other features that share it. A complaint is a learning signal, not just a bug report —
+resolving one should leave the project smarter.
 
 ## Hard Rules
 

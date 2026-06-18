@@ -23,6 +23,7 @@ You capture ideas without interrupting active work. The agent grills you on each
 | `/implement` | Execute an approved feature plan (TDD → MR). |
 | `/cleanup` | Periodic architecture review and cleanup. |
 | `/onboard` | Walk a new or returning developer through the project. |
+| `/revise` | Turn a complaint about shipped behavior into a traced revision (logs it, traces why, amends PRD/tests, propagates the new preference). |
 | `/diagram` | Hand-author a clean Mermaid diagram (architecture, data-flow, sequence, call graph, deployment). General-purpose craft skill — works in any project, independent of the core workflow. |
 | `/sound-notify` | Set up macOS sound alerts: hear when Claude finishes a turn and when it needs your attention (a question or permission). General-purpose, independent of the core workflow. |
 
@@ -105,6 +106,7 @@ project-root/
 │           ├── TRACE.md             ← generated: REQ↔DEC↔TC↔code + mermaid + orphans
 │           ├── ISSUE_PLAN.md        ← slice plan
 │           ├── REVIEW.md            ← per-slice review
+│           ├── COMPLAINTS.md        ← logged complaints → traced revisions (CMP-###)
 │           ├── HANDOFF.md           ← resume context
 │           ├── RISK_LOG.md          ← feature-scoped risks
 │           ├── decisions/           ← feature-scoped ADRs
