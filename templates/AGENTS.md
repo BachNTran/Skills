@@ -68,7 +68,12 @@ See `docs/architecture/README.md` for what to put in each.
 
 Stable IDs let any artifact link to any other and power the bottom-up walk
 (code → test → REQ → decision). The `TRACE.md` index is **generated** from these — never
-hand-edit it.
+hand-edit it. Regenerate per-feature `TRACE.md` (tables + Mermaid graph + orphan report) with:
+
+```
+python3 tools/trace_index.py            # regenerate all features' TRACE.md
+python3 tools/trace_index.py --check    # non-zero exit if any orphan warnings (CI/hook gate)
+```
 
 | ID        | Lives in                                   | Means                                    |
 |-----------|--------------------------------------------|------------------------------------------|
@@ -81,7 +86,7 @@ hand-edit it.
 Links are relative and traversable both ways:
 - REQ `from:` DEC  ·  DEC `serves:` REQ
 - TC names its REQ  ·  REQ is proven-by TC (derived)
-- code annotation `// @covers REQ-###` ties an implementation region to a requirement
+- code annotation `// @covers FEAT-NNNN:REQ-###` ties an implementation region to a requirement (feature-qualified, since REQ IDs are feature-local)
 
 Rules:
 - Never reuse or renumber an ID. **Supersede, don't delete** (`status:` + `superseded_by:`).
