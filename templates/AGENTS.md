@@ -64,6 +64,29 @@ Default paths used by the workflow skills. If you rename or relocate any of thes
 
 See `docs/architecture/README.md` for what to put in each.
 
+## Traceability IDs
+
+Stable IDs let any artifact link to any other and power the bottom-up walk
+(code → test → REQ → decision). The `TRACE.md` index is **generated** from these — never
+hand-edit it.
+
+| ID        | Lives in                                   | Means                                    |
+|-----------|--------------------------------------------|------------------------------------------|
+| DEC-###   | feature `DECISIONS.md` (or `docs/decisions/`) | a decision converged on while grilling |
+| REQ-###   | feature `PRD.md`                           | a requirement (EARS + inline rationale)  |
+| TC-###    | feature `TEST_PLAN.md`                     | a test case                              |
+| CMP-###   | feature `COMPLAINTS.md`                    | a logged complaint → revision trigger    |
+| ADR-####  | `docs/decisions/` or feature `decisions/`  | an architecture decision record          |
+
+Links are relative and traversable both ways:
+- REQ `from:` DEC  ·  DEC `serves:` REQ
+- TC names its REQ  ·  REQ is proven-by TC (derived)
+- code annotation `// @covers REQ-###` ties an implementation region to a requirement
+
+Rules:
+- Never reuse or renumber an ID. **Supersede, don't delete** (`status:` + `superseded_by:`).
+- The ID is the only formal part of a record — the body stays informal prose.
+
 ## Hard Rules
 
 1. No code without an approved ISSUE_PLAN.md

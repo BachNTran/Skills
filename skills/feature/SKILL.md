@@ -14,6 +14,7 @@ You produce durable artifacts that enable autonomous execution. Quality here det
 3. Ask developer which feature to plan if ambiguous
 4. Create feature folder: `ProjectManagement/features/FEAT-[NNNN]-[slug]/`
 5. Create empty `BRIEF.md` with YAML frontmatter and section headers
+6. Create `DECISIONS.md` from [`templates/DECISIONS_TEMPLATE.md`](templates/DECISIONS_TEMPLATE.md) — the decision ledger you append to throughout the grill
 
 ---
 
@@ -51,6 +52,8 @@ Create `docs/knowledge-base/[component-name]/DOMAIN_CONTEXT.md` and `HARDWARE_AC
 ## PHASE 3 — FEATURE GRILL
 
 Produce `BRIEF.md` by walking 9 branches, one at a time. Write each section of BRIEF.md as the branch resolves — do not wait until the end.
+
+**Record decisions live.** The moment a branch resolves a real choice (a tradeoff, a rejected alternative, a boundary), append a `DEC-###` entry to `DECISIONS.md` — informal prose body, stable ID, who you converged with. Do not batch at the end. These IDs are what PRD requirements will link back to (`from: DEC-###`), and what powers the bottom-up walk later.
 
 **Before asking any question:** scan the codebase and existing docs to answer what you can. Only ask the developer about things you cannot determine from code or documents.
 
@@ -123,8 +126,12 @@ Only ask developer if a genuine blocker exists that BRIEF didn't resolve.
 
 Use the structure in [`templates/PRD_TEMPLATE.md`](templates/PRD_TEMPLATE.md) (loaded at this phase, not earlier).
 
+Every `REQ-###` must use **EARS** phrasing and carry inline rationale (`why`, `why-not-broader`) plus `from: DEC-###` linking to the decision(s) that birthed it. Back-fill each contributing `DEC-###`'s `serves:` field with the REQ ID so the link is traversable both ways.
+
 Self-check before approval request:
-- Every Branch 0-7 decision is reflected
+- Every Branch 0-7 decision is reflected and recorded as a `DEC-###`
+- Every REQ uses EARS, carries why / why-not-broader, and links `from:` ≥1 DEC
+- Every referenced DEC lists this REQ in its `serves:` field (bidirectional link)
 - No new information introduced
 - All requirements are testable
 - No open questions that block implementation
@@ -238,6 +245,7 @@ When ISSUE_PLAN.md is approved, report:
 Feature FEAT-[NNNN] fully planned.
 Artifacts created:
   ProjectManagement/features/FEAT-[NNNN]/BRIEF.md       ✓
+  ProjectManagement/features/FEAT-[NNNN]/DECISIONS.md   ✓
   ProjectManagement/features/FEAT-[NNNN]/PRD.md         ✓
   ProjectManagement/features/FEAT-[NNNN]/TEST_PLAN.md   ✓
   ProjectManagement/features/FEAT-[NNNN]/ISSUE_PLAN.md  ✓

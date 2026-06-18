@@ -93,7 +93,8 @@ project-root/
 │   └── features/
 │       └── FEAT-0001-name/
 │           ├── BRIEF.md             ← grill output
-│           ├── PRD.md               ← frozen requirements
+│           ├── DECISIONS.md         ← decision ledger (DEC-### + rationale)
+│           ├── PRD.md               ← frozen requirements (EARS + why, from: DEC-###)
 │           ├── TEST_PLAN.md         ← concrete test cases
 │           ├── ISSUE_PLAN.md        ← slice plan
 │           ├── REVIEW.md            ← per-slice review
