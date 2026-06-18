@@ -280,6 +280,33 @@ def build_trace(feat_dir: Path, root: Path) -> tuple[str, list[str]]:
     return "\n".join(lines), orphans
 
 
+def project_rollup(rows: list[dict]) -> str:
+    """Build a project-level ProjectManagement/TRACE.md across all features."""
+    lines = [
+        GENERATED_MARKER,
+        "# TRACE — project rollup",
+        "",
+        "One row per feature. Regenerate with `python3 tools/trace_index.py`.",
+        "",
+        "| Feature | Reqs | Tests | Orphan warnings | Index |",
+        "|---------|------|-------|-----------------|-------|",
+    ]
+    for r in rows:
+        link = _md_link(f"features/{r['dir']}/TRACE.md", "TRACE.md")
+        flag = f"⚠️ {r['orphans']}" if r["orphans"] else "✅ 0"
+        lines.append(f"| {r['feat']} | {r['reqs']} | {r['tcs']} | {flag} | {link} |")
+    lines += ["", "## Map", "", "```mermaid", "graph TD"]
+    for r in rows:
+        shape = f'{r["feat"]}["{r["feat"]}<br/>{r["reqs"]} req · {r["tcs"]} tc"]'
+        lines.append(f"  {shape}")
+        if r["orphans"]:
+            lines.append(f"  class {r['feat']} orphan;")
+    lines.append("  classDef orphan stroke:#c00,stroke-width:2px;")
+    lines.append("```")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("root", nargs="?", default=".", help="project root (default: cwd)")
@@ -294,18 +321,29 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     total_orphans = 0
-    wrote = 0
+    rows: list[dict] = []
     for feat_dir in sorted(features_dir.iterdir()):
         if not feat_dir.is_dir() or not FEAT_ID.search(feat_dir.name):
             continue
         content, orphans = build_trace(feat_dir, root)
         (feat_dir / "TRACE.md").write_text(content)
-        wrote += 1
+        feat_match = FEAT_ID.search(feat_dir.name)
+        rows.append({
+            "feat": feat_match.group(0) if feat_match else feat_dir.name,
+            "dir": feat_dir.name,
+            "reqs": len(parse_prd(feat_dir / "PRD.md")),
+            "tcs": len(parse_test_plan(feat_dir / "TEST_PLAN.md")),
+            "orphans": len(orphans),
+        })
         total_orphans += len(orphans)
         status = f"{len(orphans)} orphan warning(s)" if orphans else "clean"
         print(f"  {feat_dir.name}/TRACE.md — {status}")
 
-    print(f"Wrote {wrote} TRACE.md file(s); {total_orphans} orphan warning(s) total.")
+    if rows:
+        (features_dir.parent / "TRACE.md").write_text(project_rollup(rows))
+        print(f"  ProjectManagement/TRACE.md — rollup of {len(rows)} feature(s)")
+
+    print(f"Wrote {len(rows)} feature index/indexes; {total_orphans} orphan warning(s) total.")
     if args.check and total_orphans:
         return 1
     return 0

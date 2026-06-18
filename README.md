@@ -29,22 +29,59 @@ You capture ideas without interrupting active work. The agent grills you on each
 
 When in doubt, run `/workflow` and the agent tells you the next step. (Agents without slash commands: point them at the matching file under `skills/`.)
 
+## Traceability, Memory & Autonomy
+
+Three capabilities make the workflow self-improving — you don't drive them, they happen. See
+[`docs/decisions/ADR-0001-invisible-workflow.md`](docs/decisions/ADR-0001-invisible-workflow.md)
+for the full design.
+
+**Intent routing — you never memorize a command.** State what you want ("add X", "why does X
+exist?", "I don't like how X works") and the agent classifies the intent and runs the right
+phase. Slash commands still work as escape hatches.
+
+**Criticality tiers — autonomy you control.** Each project declares a tier in
+`PROJECT_CONTEXT.md`: **EXPLORE** (agent ships after you grill the idea), **STANDARD** (you
+approve the plan, agent implements), or **CRITICAL** (you review every line; the agent is a
+second eye + grunt work). On a fresh project the agent runs a short config grill and saves it.
+
+**Bottom-up traceability — point at anything, see its lineage.** Decisions are recorded live
+during grilling as `DEC-###` (informal, linkable). Requirements are EARS-phrased `REQ-###`
+carrying their own rationale + `from: DEC-###`. Tests name their `REQ-###`; code carries
+`// @covers FEAT-NNNN:REQ-###`. `tools/trace_index.py` regenerates a per-feature `TRACE.md`
+(tables + mermaid + orphan report) plus a project rollup — so "what tests this and why?"
+returns code → test → requirement (with why-needed) → decision.
+
+**Memory that compounds.** `PREFERENCES.md` grows with your design taste and corrections; a
+`SessionStart` hook injects it silently each session. When you dislike a behavior, `/revise`
+logs it, traces why it was built that way, amends the PRD/tests, and offers to make the fix a
+project-wide preference. The more you work, the better it fits how you think.
+
+All of this is **project-local** — a global skills install keeps each project's config,
+decisions, preferences, and trace inside that project.
+
 ## Context Cost
 
 Approximate tokens per skill, measured with tiktoken `cl100k_base` (Claude's tokenizer is similar; values are within ~10%).
 
 | Skill        |   Hint¹ |   Body² |  Lazy templates³ |
 |--------------|--------:|--------:|-----------------:|
-| `/workflow`  |      45 |     607 | —                |
-| `/idea`      |      56 |     868 | —                |
-| `/triage`    |      47 |     576 | —                |
-| `/feature`   |      52 |   2,312 | 651  (4 files)   |
-| `/implement` |      51 |   1,939 | 183  (1 file)    |
-| `/cleanup`   |      49 |     897 | —                |
-| `/onboard`   |      54 |     983 | —                |
+| `/workflow`  |      45 |   1,316 | —                |
+| `/idea`      |      57 |     871 | —                |
+| `/triage`    |      51 |     588 | —                |
+| `/feature`   |      52 |   3,111 | 1,418  (5 files) |
+| `/implement` |      51 |   2,970 | 189  (1 file)    |
+| `/cleanup`   |      49 |     902 | —                |
+| `/onboard`   |      54 |   1,010 | —                |
 | `/diagram`   |      85 |   1,108 | —                |
-| `/sound-notify` |   86 |   1,114 | —                |
-| **Total**    | **525** | **10,404** | **834**        |
+| `/revise`    |      80 |     846 | 250  (1 file)    |
+| `/codex-delegate` | 54 |     507 | —                |
+| `/sound-notify` |   74 |   1,190 | —                |
+| **Total**    | **652** | **14,419** | **1,857**     |
+
+**Always-on footprint is just the hints (~650 tokens).** Skill bodies and lazy templates load
+only when a phase runs. The traceability tooling (`tools/trace_index.py`) and hooks run
+out-of-band and cost **zero** model context; the `SessionStart` hook injects a small, dynamic
+memory digest (criticality tier + active preferences + current work) rather than a fixed file.
 
 ¹ **Hint** — the skill's `description:` field, loaded into always-on context so the agent knows when to invoke the skill. Paid every session.
 ² **Body** — the full `SKILL.md`, loaded only when the skill is invoked.

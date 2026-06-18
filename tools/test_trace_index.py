@@ -110,5 +110,18 @@ def test_fully_traced_is_clean(tmp_path):
     assert "✅ No orphans" in content
 
 
+def test_project_rollup_written(tmp_path):
+    _scaffold(tmp_path)
+    ti.main([str(tmp_path)])
+    rollup = tmp_path / "ProjectManagement" / "TRACE.md"
+    assert rollup.exists()
+    text = rollup.read_text()
+    assert "# TRACE — project rollup" in text
+    assert "FEAT-0007" in text
+    assert "```mermaid" in text
+    # FEAT-0007 has orphans in the default fixture → flagged in the rollup.
+    assert "⚠️" in text
+
+
 def test_no_features_dir_is_noop(tmp_path):
     assert ti.main([str(tmp_path)]) == 0
