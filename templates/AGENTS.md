@@ -92,6 +92,22 @@ Rules:
 - Never reuse or renumber an ID. **Supersede, don't delete** (`status:` + `superseded_by:`).
 - The ID is the only formal part of a record — the body stays informal prose.
 
+## Memory & Preferences
+
+The project gets smarter over time via **project-local** memory (never written to the global
+skills dir):
+
+- `PREFERENCES.md` — design taste + workflow corrections. The `SessionStart` hook injects its
+  **Active preferences** digest each session, so the developer never re-explains their style.
+- `DECISIONS.md` (per feature) — decision rationale, linked to requirements.
+- `docs/architecture/GLOSSARY.md` and `docs/knowledge-base/` — domain facts.
+
+At milestones (a slice merges, a feature closes) and whenever the developer corrects you:
+1. Regenerate trace: `python3 tools/trace_index.py`.
+2. If you learned a durable preference or received a correction, append it to `PREFERENCES.md`
+   — and, if it is currently-true and high-value, to the **Active preferences** digest.
+3. Keep the digest small; move superseded items to the Retired section (never delete).
+
 ## Hard Rules
 
 1. No code without an approved ISSUE_PLAN.md

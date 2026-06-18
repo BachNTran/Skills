@@ -9,6 +9,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).parent
 SKILLS_SRC = SCRIPT_DIR / "skills"
 TEMPLATES_SRC = SCRIPT_DIR / "templates"
+TOOLS_SRC = SCRIPT_DIR / "tools"
 
 PROJECT_DIRS = [
     "ProjectManagement/ideas",
@@ -17,7 +18,7 @@ PROJECT_DIRS = [
     "docs/decisions",
     "docs/knowledge-base",
 ]
-ROOT_TEMPLATES = ["CLAUDE.md", "AGENTS.md", "PROJECT_CONTEXT.md", "CODING_STANDARDS.md"]
+ROOT_TEMPLATES = ["CLAUDE.md", "AGENTS.md", "PROJECT_CONTEXT.md", "CODING_STANDARDS.md", "PREFERENCES.md"]
 PROJECTMGMT_TEMPLATES = ["ROADMAP.md", "DEV_TRACKER.md", "RISK_LOG.md"]
 
 
@@ -215,6 +216,26 @@ def bootstrap_project(base: Path) -> None:
         print(f"  created:  docs/architecture/README.md")
     else:
         print(f"  skipped:  docs/architecture/README.md (already exists)")
+
+    # Traceability + hook tooling — project-local so it works under a global skills install.
+    tools_dest = base / "tools"
+    if tools_dest.exists():
+        print(f"  skipped:  tools/ (already exists)")
+    else:
+        shutil.copytree(TOOLS_SRC, tools_dest, ignore=shutil.ignore_patterns(
+            "__pycache__", "test_*.py", "*.pyc"))
+        print(f"  created:  tools/ (trace generator + hooks)")
+
+    # Claude Code hook wiring. Never clobber an existing settings.json.
+    settings_dest = base / ".claude" / "settings.json"
+    if settings_dest.exists():
+        print(f"  skipped:  .claude/settings.json (already exists — merge hooks manually "
+              f"from templates/settings.json)")
+    else:
+        settings_dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(TEMPLATES_SRC / "settings.json", settings_dest)
+        print(f"  created:  .claude/settings.json (SessionStart + trace-refresh hooks)")
+
     print("\n✓ Project structure ready")
     print("\nNext steps:")
     print("  1. Fill in PROJECT_CONTEXT.md — describe your project")

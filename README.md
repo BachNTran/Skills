@@ -70,9 +70,11 @@ Or pass a target directly to skip the TUI:
 
 `bootstrap` also creates the project structure:
 
-- **Permanent context** at root: `AGENTS.md` (+ thin `CLAUDE.md` pointer), `PROJECT_CONTEXT.md`, `CODING_STANDARDS.md`.
+- **Permanent context** at root: `AGENTS.md` (+ thin `CLAUDE.md` pointer), `PROJECT_CONTEXT.md` (incl. criticality tier), `CODING_STANDARDS.md`, `PREFERENCES.md` (grows over time).
 - **ProjectManagement/** for transient work-tracking: `ROADMAP.md`, `DEV_TRACKER.md`, `RISK_LOG.md`, `ideas/`, `features/`.
 - **docs/** for durable knowledge: `architecture/`, `decisions/`, `knowledge-base/`.
+- **tools/** the trace-index generator + Claude Code hooks (project-local, so a global skills install still works).
+- **.claude/settings.json** wires the `SessionStart` (memory inject) and trace-refresh hooks.
 
 Then fill in `PROJECT_CONTEXT.md` + `CODING_STANDARDS.md` and run `/workflow`.
 
@@ -82,8 +84,12 @@ Then fill in `PROJECT_CONTEXT.md` + `CODING_STANDARDS.md` and run `/workflow`.
 project-root/
 ├── AGENTS.md                        ← canonical agent instructions (all rules)
 ├── CLAUDE.md                        ← thin pointer so Claude Code auto-loads AGENTS.md
-├── PROJECT_CONTEXT.md               ← what this project is
+├── PROJECT_CONTEXT.md               ← what this project is (+ criticality tier)
 ├── CODING_STANDARDS.md              ← coding rules + linter
+├── PREFERENCES.md                   ← design taste + corrections (grows over time)
+│
+├── .claude/settings.json            ← SessionStart + trace-refresh hooks
+├── tools/                           ← trace_index.py + hooks/ (project-local)
 │
 ├── ProjectManagement/               ← transient work tracking
 │   ├── ROADMAP.md                   ← feature priority
@@ -96,6 +102,7 @@ project-root/
 │           ├── DECISIONS.md         ← decision ledger (DEC-### + rationale)
 │           ├── PRD.md               ← frozen requirements (EARS + why, from: DEC-###)
 │           ├── TEST_PLAN.md         ← concrete test cases
+│           ├── TRACE.md             ← generated: REQ↔DEC↔TC↔code + mermaid + orphans
 │           ├── ISSUE_PLAN.md        ← slice plan
 │           ├── REVIEW.md            ← per-slice review
 │           ├── HANDOFF.md           ← resume context
