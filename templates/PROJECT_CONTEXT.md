@@ -5,6 +5,22 @@
 This file gives humans and AI agents a fast orientation to the project.
 Keep it short, durable, and updated only when project-level context changes.
 
+## Criticality & Autonomy
+
+Governs how much the agent decides autonomously vs. defers to you. The agent reads this
+at session start; workflow hooks enforce it.
+
+- **criticality:** STANDARD   <!-- EXPLORE | STANDARD | CRITICAL -->
+
+| Tier     | You do                                  | Agent does                                   | Trace                    |
+|----------|-----------------------------------------|----------------------------------------------|--------------------------|
+| EXPLORE  | Grill the idea, then step back          | Ships autonomously; may auto-merge           | Light                    |
+| STANDARD | Approve PRD + test plan + slice plan    | Implements solo                              | Full                     |
+| CRITICAL | Review every slice, diff, and line      | Grunt work + second eye only; never auto-merges | Full + rationale required |
+
+A feature may override this in its `BRIEF.md` (`criticality:` + a reason). If this field
+is unset, the agent runs a short config grill, proposes a setting, and writes it here.
+
 ## Product Sentence
 
 We are building:

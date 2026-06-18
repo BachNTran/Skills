@@ -35,6 +35,21 @@ When unsure, run /workflow. (Agents without slash-command support: read the matc
 3. ProjectManagement/DEV_TRACKER.md
 4. ProjectManagement/ROADMAP.md if no active work, else ProjectManagement/features/[active]/HANDOFF.md
 
+## Criticality & Autonomy
+
+Read `PROJECT_CONTEXT.md` → **Criticality & Autonomy**. The declared tier governs how much
+you decide vs. defer:
+
+- **EXPLORE** — after the idea is grilled, implement and ship autonomously; light trace.
+- **STANDARD** (default) — get PRD, test plan, and slice plan approved; then implement solo; full trace.
+- **CRITICAL** — the developer reviews every slice, diff, and line. You are a second eye and
+  do grunt work only (build fixes, scaffolding, syntax checks, brainstorming). Never auto-merge.
+  Full trace with rationale required.
+
+A feature's `BRIEF.md` may override the project tier (with a reason). **If `criticality:` is
+unset in PROJECT_CONTEXT.md, run a short config grill, propose a tier, and write it there
+before doing feature work.**
+
 ## Architecture Docs
 
 Default paths used by the workflow skills. If you rename or relocate any of these to match your project's naming convention, update this table — the agent reads this section to find the actual files.
