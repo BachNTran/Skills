@@ -1,0 +1,27 @@
+{
+  "title": "Training run playback: loss curve, checkpoints and warm-up",
+  "subtitle": "Not a loop of boxes: a curve draws itself, a bar grows, a counter ticks, markers fade in.",
+  "width": 960, "height": 480, "duration": 12,
+  "elements": [
+    {"type": "path", "cls": "rd", "d": "M60 380 L900 380"},
+    {"type": "path", "cls": "rd", "d": "M60 380 L60 90"},
+    {"type": "text", "x": 66, "y": 100, "text": "loss", "cls": "s"},
+    {"type": "path", "id": "loss", "cls": "line", "d": "M60 110 L160 170 L240 215 L330 250 L420 285 L520 300 L600 318 L700 330 L800 336 L900 340"},
+    {"type": "text", "id": "ck1", "x": 316, "y": 238, "text": "◆ checkpoint", "cls": "c"},
+    {"type": "text", "id": "ck2", "x": 506, "y": 288, "text": "◆ checkpoint", "cls": "c"},
+    {"type": "text", "id": "ck3", "x": 686, "y": 318, "text": "◆ best", "cls": "c"},
+    {"type": "text", "x": 60, "y": 430, "text": "warm-up", "cls": "g"},
+    {"type": "rect", "id": "wu", "x": 140, "y": 418, "w": 0, "h": 14, "fill": "#f2b84b"},
+    {"type": "circle", "id": "head", "r": 6}
+  ],
+  "tracks": [
+    {"kind": "draw", "target": "loss", "at": [0, 10]},
+    {"kind": "move", "target": "head", "path": "loss", "at": [0, 10]},
+    {"kind": "grow", "target": "wu", "attr": "width", "at": [0, 2], "from": 0, "to": 180},
+    {"kind": "fade", "target": "ck1", "at": [3, 3.6], "from": 0, "to": 1},
+    {"kind": "fade", "target": "ck2", "at": [5.5, 6.1], "from": 0, "to": 1},
+    {"kind": "fade", "target": "ck3", "at": [7.8, 8.4], "from": 0, "to": 1},
+    {"kind": "count", "x": 760, "y": 80, "at": [0, 10], "values": ["epoch 0", "epoch 2", "epoch 4", "epoch 6", "epoch 8", "epoch 10"], "cls": "t"}
+  ],
+  "progress": {"label": "playback", "end": "→ restart", "markers": [[0, "start"], [3, "ckpt"], [5.5, "ckpt"], [7.8, "best"], [10, "end"]]}
+}

@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [{ "type": "command", "command": "modgate pending --hook" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "modgate sync --hook" }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "modgate sync --hook" }]
+      }
+    ]
+  },
+  "permissions": {
+    "ask": ["Bash(modgate approve:*)"]
+  }
+}

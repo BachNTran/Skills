@@ -1,0 +1,21 @@
+{
+  "title": "One request through a web service",
+  "subtitle": "The server runs seven steps per request, then takes the next one.",
+  "width": 1160, "height": 640, "step_seconds": 2,
+  "progress_label": "progress through request n", "progress_end": "→ request n+1",
+  "center": {"title": "HttpServer", "code": "server/app.py", "note": "one request at a time", "x": 460, "y": 330},
+  "steps": [
+    {"title": "Router", "code": "→ Route", "group": "http", "short": "Route", "x": 460, "y": 128},
+    {"title": "AuthMiddleware", "code": "→ Session", "group": "security", "short": "Session", "x": 700, "y": 188},
+    {"title": "RateLimiter", "code": "→ allow / 429", "group": "security", "short": "Allowed", "x": 770, "y": 330, "gate": true},
+    {"title": "Validator", "code": "→ OrderRequest", "group": "domain", "short": "Valid input", "x": 700, "y": 470},
+    {"title": "OrderService", "code": "→ Order", "group": "domain", "short": "Order", "x": 460, "y": 540},
+    {"title": "Repository", "code": "INSERT → row id", "group": "storage", "short": "Stored", "x": 220, "y": 470},
+    {"title": "Serializer", "code": "→ JSON 201", "group": "http", "short": "Response", "x": 150, "y": 330}
+  ],
+  "extras": [
+    {"title": "Postgres", "lines": ["orders table", "one row per request"], "x": 1030, "y": 330, "w": 200, "h": 96, "style": "db"}
+  ],
+  "arrows": [[575, 368, 930, 368, "write"]],
+  "footnote": "Gold border = a gate step: the rate limiter can stop the request (429) before any work is done."
+}

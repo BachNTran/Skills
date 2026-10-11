@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 570" font-family="system-ui, sans-serif">
+<title>Training run playback: loss curve, checkpoints and warm-up</title><style>.bg{fill:#0b0f0d}.box{fill:#121a16;stroke:#8da295;stroke-width:1.5}
+.eng{fill:#101a2b;stroke:#5b8def;stroke-width:2}.db{fill:#1a1230;stroke:#a06bff;stroke-width:2}
+.gate{fill:#121a16;stroke:#f2b84b;stroke-width:2.5}
+.t{fill:#f0f5f1;font-size:14px;font-weight:600}.c{fill:#5eead4;font-size:12px;font-family:ui-monospace,monospace}
+.s{fill:#8da295;font-size:11.5px}.g{fill:#4f6b5a;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.n{fill:#0b0f0d;font-size:12px;font-weight:700}.lane{fill:none;stroke:#2f4a3c;stroke-width:2}.line{fill:none;stroke:#5eead4;stroke-width:2.5}
+.rd{fill:none;stroke:#8da295;stroke-width:1.5;marker-end:url(#a)}
+.wr{fill:none;stroke:#a06bff;stroke-width:1.5;stroke-dasharray:5 5}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8da295"/></marker></defs>
+<rect class="bg" width="960" height="570"/>
+<text x="24" y="32" class="t" font-size="18">Training run playback: loss curve, checkpoints and warm-up</text>
+<text x="24" y="52" class="s">Not a loop of boxes: a curve draws itself, a bar grows, a counter ticks, markers fade in.</text>
+<path class="rd" d="M60 380 L900 380"></path>
+<path class="rd" d="M60 380 L60 90"></path>
+<path id="loss" class="line" d="M60 110 L160 170 L240 215 L330 250 L420 285 L520 300 L600 318 L700 330 L800 336 L900 340"><set attributeName="stroke-dasharray" to="886.6348907020315 886.6348907020315"/><animate attributeName="stroke-dashoffset" dur="12s" repeatCount="indefinite" calcMode="linear" values="886.6348907020315;886.6348907020315;0;0" keyTimes="0.0000;0.0000;0.8333;1.0000"/></path>
+<text x="66" y="100" class="s">loss</text>
+<text id="ck1" x="316" y="238" class="c">◆ checkpoint<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="linear" values="0;0;0;1;1" keyTimes="0.0000;0.2500;0.2500;0.3000;1.0000"/></text>
+<text id="ck2" x="506" y="288" class="c">◆ checkpoint<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="linear" values="0;0;0;1;1" keyTimes="0.0000;0.4583;0.4583;0.5083;1.0000"/></text>
+<text id="ck3" x="686" y="318" class="c">◆ best<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="linear" values="0;0;0;1;1" keyTimes="0.0000;0.6500;0.6500;0.7000;1.0000"/></text>
+<text x="60" y="430" class="g">warm-up</text>
+<rect id="wu" x="140" y="418" width="0" height="14" rx="3" fill="#f2b84b"><animate attributeName="width" dur="12s" repeatCount="indefinite" calcMode="linear" values="0;0;180;180" keyTimes="0.0000;0.0000;0.1667;1.0000"/></rect>
+<g id="head"><circle cx="0" cy="0" r="6" fill="#5eead4"/><circle cx="0" cy="0" r="13" fill="none" stroke="#5eead4" opacity=".5"/><animateMotion dur="12s" repeatCount="indefinite" calcMode="linear" keyPoints="0.0000;0.0000;1.0000;1.0000" keyTimes="0.0000;0.0000;0.8333;1.0000"><mpath href="#loss"/></animateMotion></g>
+<text x="760" y="80" class="t" opacity="0">epoch 0<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="1.0;1.0;0.0;0.0" keyTimes="0.0000;0.1388;0.1389;1.0000"/></text>
+<text x="760" y="80" class="t" opacity="0">epoch 2<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0;0.0;0.0" keyTimes="0.0000;0.1388;0.1389;0.2777;0.2778;1.0000"/></text>
+<text x="760" y="80" class="t" opacity="0">epoch 4<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0;0.0;0.0" keyTimes="0.0000;0.2777;0.2778;0.4166;0.4167;1.0000"/></text>
+<text x="760" y="80" class="t" opacity="0">epoch 6<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0;0.0;0.0" keyTimes="0.0000;0.4166;0.4167;0.5555;0.5556;1.0000"/></text>
+<text x="760" y="80" class="t" opacity="0">epoch 8<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0;0.0;0.0" keyTimes="0.0000;0.5555;0.5556;0.6943;0.6944;1.0000"/></text>
+<text x="760" y="80" class="t" opacity="0">epoch 10<animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0;0.0;0.0" keyTimes="0.0000;0.6943;0.6944;0.8332;0.8333;1.0000"/></text>
+<text x="24" y="502" class="g">playback</text>
+<rect x="60" y="516" width="640" height="8" rx="4" fill="#1c2621"/>
+<rect x="60" y="516" width="0" height="8" rx="4" fill="#5eead4" opacity=".7"><animate attributeName="width" dur="12s" repeatCount="indefinite" calcMode="linear" values="0;0;640" keyTimes="0.0000;0.0000;1.0000"/></rect>
+<circle cx="60" cy="520" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="60" cy="520" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="1.0;1.0" keyTimes="0.0000;1.0000"/></circle>
+<text x="60" y="524" text-anchor="middle" class="n">1</text>
+<text x="60" y="546" text-anchor="middle" class="s">start</text>
+<circle cx="220" cy="520" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="220" cy="520" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.2499;0.2500;1.0000"/></circle>
+<text x="220" y="524" text-anchor="middle" class="n">2</text>
+<text x="220" y="546" text-anchor="middle" class="s">ckpt</text>
+<circle cx="353" cy="520" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="353" cy="520" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.4582;0.4583;1.0000"/></circle>
+<text x="353" y="524" text-anchor="middle" class="n">3</text>
+<text x="353" y="546" text-anchor="middle" class="s">ckpt</text>
+<circle cx="476" cy="520" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="476" cy="520" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.6499;0.6500;1.0000"/></circle>
+<text x="476" y="524" text-anchor="middle" class="n">4</text>
+<text x="476" y="546" text-anchor="middle" class="s">best</text>
+<circle cx="593" cy="520" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="593" cy="520" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="12s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.8332;0.8333;1.0000"/></circle>
+<text x="593" y="524" text-anchor="middle" class="n">5</text>
+<text x="593" y="546" text-anchor="middle" class="s">end</text>
+<text x="714" y="524" class="c">→ restart</text>
+</svg>

@@ -1,0 +1,3 @@
+REQ-HAL-001: [include/hal/adc.hpp, fakes/fake_adc.hpp]
+REQ-HAL-002: [include/hal/i2c.hpp, fakes/fake_i2c.hpp]
+REQ-HAL-003: [include/hal/block_device.hpp, fakes/fake_block_device.hpp]

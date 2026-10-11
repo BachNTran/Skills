@@ -1,0 +1,1 @@
+REQ-OSAL-001: [include/osal/clock.hpp, fakes/fake_clock.hpp]

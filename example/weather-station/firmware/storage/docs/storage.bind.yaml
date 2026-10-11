@@ -1,0 +1,1 @@
+REQ-STOR-001: [include/storage/storage_guard.hpp, src/storage_guard.cpp, test/test_storage_integration.cpp]

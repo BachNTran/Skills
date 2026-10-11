@@ -1,0 +1,2 @@
+REQ-BATMON-001: [include/battery_monitor/battery_monitor.hpp, src/battery_monitor.cpp, test/test_sampling.cpp]
+REQ-BATMON-002: [include/battery_monitor/battery_monitor.hpp, src/brownout.cpp, test/test_brownout.cpp]

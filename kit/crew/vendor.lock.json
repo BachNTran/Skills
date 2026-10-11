@@ -1,0 +1,200 @@
+{
+ "skills/caveman-commit/SKILL.md": {
+  "commit": "2e08b9177c07bb7249a8a2d1a6758e5db281d002",
+  "license": "Apache-2.0",
+  "modified": true,
+  "path": "skills/caveman-commit/SKILL.md",
+  "sha256": "sha256:6dfa1c02cff6244e3c5af7ed20ed7f34d6bd1b897eabc13348f166395682300b",
+  "upstream": "JuliusBrussee/caveman",
+  "upstream_sha256": "sha256:c788a282fc75b981b421dfdad5d84ea7f83f946c126daa39cfc7d3f97845e193"
+ },
+ "skills/caveman-review/SKILL.md": {
+  "commit": "2e08b9177c07bb7249a8a2d1a6758e5db281d002",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "skills/caveman-review/SKILL.md",
+  "sha256": "sha256:599330563f19b5c59c3efddffcd7e8d9098b74c29817ab422ccd3253b103fcb8",
+  "upstream": "JuliusBrussee/caveman",
+  "upstream_sha256": "sha256:599330563f19b5c59c3efddffcd7e8d9098b74c29817ab422ccd3253b103fcb8"
+ },
+ "skills/caveman/SKILL.md": {
+  "commit": "2e08b9177c07bb7249a8a2d1a6758e5db281d002",
+  "license": "Apache-2.0",
+  "modified": true,
+  "path": "plugins/caveman/skills/caveman/SKILL.md",
+  "sha256": "sha256:b078de4a4e3825df1feb97026abb3708e4fe0559018ff7876e23d7646e66f249",
+  "upstream": "JuliusBrussee/caveman",
+  "upstream_sha256": "sha256:415d43518f2b1a9498c15a445d4657117b129ee5e81b19454ce348439cc6672b"
+ },
+ "skills/drawio/SKILL.md": {
+  "commit": "eebe7def96409a15511a51fda958f4a620c2300a",
+  "license": "Apache-2.0",
+  "modified": true,
+  "path": "plugins/claude-code/skills/drawio/SKILL.md",
+  "sha256": "sha256:a86aa814acaa0817480cddcf463cf911d22fa6e755ffb50f3531d0d162b23203",
+  "upstream": "jgraph/drawio-mcp",
+  "upstream_sha256": "sha256:5e1d5460fc6a2da7da98ad851841ec174670f42c0b7339835cc709957b9328f7"
+ },
+ "skills/drawio/references/mermaid-reference.md": {
+  "commit": "eebe7def96409a15511a51fda958f4a620c2300a",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "shared/mermaid-reference.md",
+  "sha256": "sha256:7ed7dba5ae2b032c94c28c4670c9ff456826ba4ec04bbf923a6bc5abaad1c7a2",
+  "upstream": "jgraph/drawio-mcp",
+  "upstream_sha256": "sha256:7ed7dba5ae2b032c94c28c4670c9ff456826ba4ec04bbf923a6bc5abaad1c7a2"
+ },
+ "skills/drawio/references/style-reference.md": {
+  "commit": "eebe7def96409a15511a51fda958f4a620c2300a",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "shared/style-reference.md",
+  "sha256": "sha256:094df96981f85adb3124f40fd5ef02dc02eade1615ed6ffe4631f0e123a6366d",
+  "upstream": "jgraph/drawio-mcp",
+  "upstream_sha256": "sha256:094df96981f85adb3124f40fd5ef02dc02eade1615ed6ffe4631f0e123a6366d"
+ },
+ "skills/drawio/references/xml-reference.md": {
+  "commit": "eebe7def96409a15511a51fda958f4a620c2300a",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "shared/xml-reference.md",
+  "sha256": "sha256:1168b3e26064cd5baa39521320c8e19722a24ee95b22a3a995f9339e1a537804",
+  "upstream": "jgraph/drawio-mcp",
+  "upstream_sha256": "sha256:1168b3e26064cd5baa39521320c8e19722a24ee95b22a3a995f9339e1a537804"
+ },
+ "skills/graphify/SKILL.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": true,
+  "path": "graphify/skill.md",
+  "sha256": "sha256:a8a8cf028f230f38050e8b075f2b9bfe0e0850920d39ca4de2e00da5e8e4be90",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:52a7e2167b50e1ff96ac85fbee26afcdf34676c4ebb6364cd7c7938347873bd0"
+ },
+ "skills/graphify/references/add-watch.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/add-watch.md",
+  "sha256": "sha256:1e77351815547334c7e030f018dba513b303d397bf73d11fac47df03ace3b3f4",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:1e77351815547334c7e030f018dba513b303d397bf73d11fac47df03ace3b3f4"
+ },
+ "skills/graphify/references/exports.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/exports.md",
+  "sha256": "sha256:ee47fae477f106d8aed38798c58493b5a7f060a0d9d2581ce6132302827bc14b",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:ee47fae477f106d8aed38798c58493b5a7f060a0d9d2581ce6132302827bc14b"
+ },
+ "skills/graphify/references/extraction-spec.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/extraction-spec.md",
+  "sha256": "sha256:f72a6d2dfa67446f06f27a8f0053af1adc8d53b02e393c8472045f6740c6183e",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:f72a6d2dfa67446f06f27a8f0053af1adc8d53b02e393c8472045f6740c6183e"
+ },
+ "skills/graphify/references/github-and-merge.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/github-and-merge.md",
+  "sha256": "sha256:e5ebd90c7686f50363ff7a535556bc2f596d4c47ec1e6c8b95e11e36a0dfea2b",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:e5ebd90c7686f50363ff7a535556bc2f596d4c47ec1e6c8b95e11e36a0dfea2b"
+ },
+ "skills/graphify/references/hooks.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/hooks.md",
+  "sha256": "sha256:b9a4e9f66813c6fc720589f1071d1a03c95756ab7101447e14e57291fe7844e5",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:b9a4e9f66813c6fc720589f1071d1a03c95756ab7101447e14e57291fe7844e5"
+ },
+ "skills/graphify/references/query.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/query.md",
+  "sha256": "sha256:e563ddcb1e155aa230f107e5ef9380bc1249c5cd8241128de7ed8a7bd9c20cf5",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:e563ddcb1e155aa230f107e5ef9380bc1249c5cd8241128de7ed8a7bd9c20cf5"
+ },
+ "skills/graphify/references/transcribe.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/transcribe.md",
+  "sha256": "sha256:676a1e39aa6d43cdfcc416ec56616e36f7bad74066a82bd33a9485515b9a865c",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:676a1e39aa6d43cdfcc416ec56616e36f7bad74066a82bd33a9485515b9a865c"
+ },
+ "skills/graphify/references/update.md": {
+  "commit": "565b22bca14036a07acd9fd4abc5905b867a9e89",
+  "license": "Apache-2.0",
+  "modified": false,
+  "path": "graphify/skills/claude/references/update.md",
+  "sha256": "sha256:fc28570b2dacbc397728c9f10dbc5532c028c1f1a3df67ea0242fccdb61b4af9",
+  "upstream": "Graphify-Labs/graphify",
+  "upstream_sha256": "sha256:fc28570b2dacbc397728c9f10dbc5532c028c1f1a3df67ea0242fccdb61b4af9"
+ },
+ "skills/grill-me/SKILL.md": {
+  "commit": "49dd158d1076134a641b33efb035946536778336",
+  "license": "MIT",
+  "modified": false,
+  "path": "skills/productivity/grill-me/SKILL.md",
+  "sha256": "sha256:caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637",
+  "upstream": "mattpocock/skills",
+  "upstream_sha256": "sha256:caaf8b8de1684f96e26b28f3c29189db5c89cce4b73e1c93d86164f66ef88637"
+ },
+ "skills/grilling/SKILL.md": {
+  "commit": "49dd158d1076134a641b33efb035946536778336",
+  "license": "MIT",
+  "modified": true,
+  "path": "skills/productivity/grilling/SKILL.md",
+  "sha256": "sha256:b0516ef8d0a2b6449bb325a87947d47366b7e0ea65cdb510ec3684d9be6780d0",
+  "upstream": "mattpocock/skills",
+  "upstream_sha256": "sha256:befdff1e27a1dfe2a294d5871169ac1afe16d983911daa4f32627514a48c1e15"
+ },
+ "skills/ponytail-audit/SKILL.md": {
+  "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+  "license": "MIT",
+  "modified": false,
+  "path": "skills/ponytail-audit/SKILL.md",
+  "sha256": "sha256:2b3223a02c386d1263e1b08343cb8eb3a53e444cdafb1d79e26c8ec2a8fcad28",
+  "upstream": "DietrichGebert/ponytail",
+  "upstream_sha256": "sha256:2b3223a02c386d1263e1b08343cb8eb3a53e444cdafb1d79e26c8ec2a8fcad28"
+ },
+ "skills/ponytail-debt/SKILL.md": {
+  "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+  "license": "MIT",
+  "modified": false,
+  "path": "skills/ponytail-debt/SKILL.md",
+  "sha256": "sha256:63168f0e1475affb1211bc004261aa51a037f79e484571aae484bf27fe4d17c2",
+  "upstream": "DietrichGebert/ponytail",
+  "upstream_sha256": "sha256:63168f0e1475affb1211bc004261aa51a037f79e484571aae484bf27fe4d17c2"
+ },
+ "skills/ponytail-review/SKILL.md": {
+  "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+  "license": "MIT",
+  "modified": false,
+  "path": "skills/ponytail-review/SKILL.md",
+  "sha256": "sha256:33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e",
+  "upstream": "DietrichGebert/ponytail",
+  "upstream_sha256": "sha256:33fe4ebe22a460924e5d4a261e223df22e409cc94ab76182bee9fb91a3ef022e"
+ },
+ "skills/ponytail/SKILL.md": {
+  "commit": "9b58c1ffb790c075ca32e70a89cf1d80588f4abf",
+  "license": "MIT",
+  "modified": false,
+  "path": "skills/ponytail/SKILL.md",
+  "sha256": "sha256:ba68ff26239c3c3b05b2a9a47ee0d9a6b93a69639a2555ec87a5d44bffaf2f0c",
+  "upstream": "DietrichGebert/ponytail",
+  "upstream_sha256": "sha256:ba68ff26239c3c3b05b2a9a47ee0d9a6b93a69639a2555ec87a5d44bffaf2f0c"
+ }
+}

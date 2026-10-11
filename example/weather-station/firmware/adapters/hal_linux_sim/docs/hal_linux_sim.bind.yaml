@@ -1,0 +1,1 @@
+REQ-HALSIM-001: [include/hal_linux_sim/file_adc.hpp, src/file_adc.cpp]

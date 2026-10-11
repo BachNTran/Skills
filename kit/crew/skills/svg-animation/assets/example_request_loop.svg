@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 730" font-family="system-ui, sans-serif">
+<title>One request through a web service</title><style>.bg{fill:#0b0f0d}.box{fill:#121a16;stroke:#8da295;stroke-width:1.5}
+.eng{fill:#101a2b;stroke:#5b8def;stroke-width:2}.db{fill:#1a1230;stroke:#a06bff;stroke-width:2}
+.gate{fill:#121a16;stroke:#f2b84b;stroke-width:2.5}
+.t{fill:#f0f5f1;font-size:14px;font-weight:600}.c{fill:#5eead4;font-size:12px;font-family:ui-monospace,monospace}
+.s{fill:#8da295;font-size:11.5px}.g{fill:#4f6b5a;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.n{fill:#0b0f0d;font-size:12px;font-weight:700}.lane{fill:none;stroke:#2f4a3c;stroke-width:2}.line{fill:none;stroke:#5eead4;stroke-width:2.5}
+.rd{fill:none;stroke:#8da295;stroke-width:1.5;marker-end:url(#a)}
+.wr{fill:none;stroke:#a06bff;stroke-width:1.5;stroke-dasharray:5 5}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8da295"/></marker></defs>
+<rect class="bg" width="1160" height="730"/>
+<text x="24" y="32" class="t" font-size="18">One request through a web service</text>
+<text x="24" y="52" class="s">The server runs seven steps per request, then takes the next one.</text>
+<path id="loop" class="lane" d="M460 128 L700 188 L770 330 L700 470 L460 540 L220 470 L150 330 Z"></path>
+<path id="arr10" class="wr" d="M575 368 L930 368"><animate attributeName="stroke-dashoffset" values="0;-20" dur="1.2s" repeatCount="indefinite"/></path>
+<g><rect class="eng" x="345" y="288" width="230" height="84" rx="9"/><rect x="345" y="288" width="230" height="84" rx="9" fill="#5eead4" opacity="0"></rect><text x="460.0" y="316" text-anchor="middle" class="t">HttpServer</text><text x="460.0" y="335" text-anchor="middle" class="c">server/app.py</text><text x="460.0" y="354" text-anchor="middle" class="s">one request at a time</text></g>
+<g id="step0"><rect class="box" x="350" y="98" width="220" height="60" rx="9"/><rect x="350" y="98" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.22;0.22;0.0;0.0" keyTimes="0.0000;0.1428;0.1429;1.0000"/></rect><circle cx="350" cy="98" r="11" fill="#5eead4"/><text x="350" y="102" text-anchor="middle" class="n">1</text><text x="350" y="90" class="g">http</text><text x="460.0" y="124" text-anchor="middle" class="t">Router</text><text x="460.0" y="142" text-anchor="middle" class="c">→ Route</text></g>
+<g id="step1"><rect class="box" x="590" y="158" width="220" height="60" rx="9"/><rect x="590" y="158" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22;0.0;0.0" keyTimes="0.0000;0.1428;0.1429;0.2856;0.2857;1.0000"/></rect><circle cx="590" cy="158" r="11" fill="#5eead4"/><text x="590" y="162" text-anchor="middle" class="n">2</text><text x="590" y="150" class="g">security</text><text x="700.0" y="184" text-anchor="middle" class="t">AuthMiddleware</text><text x="700.0" y="202" text-anchor="middle" class="c">→ Session</text></g>
+<g id="step2"><rect class="gate" x="660" y="300" width="220" height="60" rx="9"/><rect x="660" y="300" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22;0.0;0.0" keyTimes="0.0000;0.2856;0.2857;0.4285;0.4286;1.0000"/></rect><circle cx="660" cy="300" r="11" fill="#f2b84b"/><text x="660" y="304" text-anchor="middle" class="n">3</text><text x="660" y="292" class="g">security</text><text x="770.0" y="326" text-anchor="middle" class="t">RateLimiter</text><text x="770.0" y="344" text-anchor="middle" class="c">→ allow / 429</text></g>
+<g id="step3"><rect class="box" x="590" y="440" width="220" height="60" rx="9"/><rect x="590" y="440" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22;0.0;0.0" keyTimes="0.0000;0.4285;0.4286;0.5713;0.5714;1.0000"/></rect><circle cx="590" cy="440" r="11" fill="#5eead4"/><text x="590" y="444" text-anchor="middle" class="n">4</text><text x="590" y="432" class="g">domain</text><text x="700.0" y="466" text-anchor="middle" class="t">Validator</text><text x="700.0" y="484" text-anchor="middle" class="c">→ OrderRequest</text></g>
+<g id="step4"><rect class="box" x="350" y="510" width="220" height="60" rx="9"/><rect x="350" y="510" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22;0.0;0.0" keyTimes="0.0000;0.5713;0.5714;0.7142;0.7143;1.0000"/></rect><circle cx="350" cy="510" r="11" fill="#5eead4"/><text x="350" y="514" text-anchor="middle" class="n">5</text><text x="350" y="502" class="g">domain</text><text x="460.0" y="536" text-anchor="middle" class="t">OrderService</text><text x="460.0" y="554" text-anchor="middle" class="c">→ Order</text></g>
+<g id="step5"><rect class="box" x="110" y="440" width="220" height="60" rx="9"/><rect x="110" y="440" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22;0.0;0.0" keyTimes="0.0000;0.7142;0.7143;0.8570;0.8571;1.0000"/></rect><circle cx="110" cy="440" r="11" fill="#5eead4"/><text x="110" y="444" text-anchor="middle" class="n">6</text><text x="110" y="432" class="g">storage</text><text x="220.0" y="466" text-anchor="middle" class="t">Repository</text><text x="220.0" y="484" text-anchor="middle" class="c">INSERT → row id</text></g>
+<g id="step6"><rect class="box" x="40" y="300" width="220" height="60" rx="9"/><rect x="40" y="300" width="220" height="60" rx="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;0.22;0.22" keyTimes="0.0000;0.8570;0.8571;1.0000"/></rect><circle cx="40" cy="300" r="11" fill="#5eead4"/><text x="40" y="304" text-anchor="middle" class="n">7</text><text x="40" y="292" class="g">http</text><text x="150.0" y="326" text-anchor="middle" class="t">Serializer</text><text x="150.0" y="344" text-anchor="middle" class="c">→ JSON 201</text></g>
+<g><rect class="db" x="930.0" y="282.0" width="200" height="96" rx="9"/><rect x="930.0" y="282.0" width="200" height="96" rx="9" fill="#5eead4" opacity="0"></rect><text x="1030.0" y="316" text-anchor="middle" class="t">Postgres</text><text x="1030.0" y="335" text-anchor="middle" class="s">orders table</text><text x="1030.0" y="354" text-anchor="middle" class="s">one row per request</text></g>
+<g id="token"><circle cx="0" cy="0" r="9" fill="#5eead4"/><circle cx="0" cy="0" r="16" fill="none" stroke="#5eead4" opacity=".5"/><animateMotion dur="14s" repeatCount="indefinite" calcMode="linear" keyPoints="0.0000;0.0000;0.1557;0.2554;0.3539;0.5112;0.6686;0.7671;1.0000;1.0000" keyTimes="0.0000;0.0000;0.1429;0.2857;0.4286;0.5714;0.7143;0.8571;1.0000;1.0000"><mpath href="#loop"/></animateMotion></g>
+<text x="24" y="620" class="s">Gold border = a gate step: the rate limiter can stop the request (429) before any work is done.</text>
+<text x="24" y="662" class="g">progress through request n</text>
+<rect x="60" y="676" width="840" height="8" rx="4" fill="#1c2621"/>
+<rect x="60" y="676" width="0" height="8" rx="4" fill="#5eead4" opacity=".7"><animate attributeName="width" dur="14s" repeatCount="indefinite" calcMode="linear" values="0;0;840" keyTimes="0.0000;0.0000;1.0000"/></rect>
+<circle cx="60" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="60" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="1.0;1.0" keyTimes="0.0000;1.0000"/></circle>
+<text x="60" y="684" text-anchor="middle" class="n">1</text>
+<text x="60" y="706" text-anchor="middle" class="s">Route</text>
+<circle cx="180" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="180" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.1428;0.1429;1.0000"/></circle>
+<text x="180" y="684" text-anchor="middle" class="n">2</text>
+<text x="180" y="706" text-anchor="middle" class="s">Session</text>
+<circle cx="300" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="300" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.2856;0.2857;1.0000"/></circle>
+<text x="300" y="684" text-anchor="middle" class="n">3</text>
+<text x="300" y="706" text-anchor="middle" class="s">Allowed</text>
+<circle cx="420" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="420" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.4285;0.4286;1.0000"/></circle>
+<text x="420" y="684" text-anchor="middle" class="n">4</text>
+<text x="420" y="706" text-anchor="middle" class="s">Valid input</text>
+<circle cx="540" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="540" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.5713;0.5714;1.0000"/></circle>
+<text x="540" y="684" text-anchor="middle" class="n">5</text>
+<text x="540" y="706" text-anchor="middle" class="s">Order</text>
+<circle cx="660" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="660" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.7142;0.7143;1.0000"/></circle>
+<text x="660" y="684" text-anchor="middle" class="n">6</text>
+<text x="660" y="706" text-anchor="middle" class="s">Stored</text>
+<circle cx="780" cy="680" r="9" fill="#121a16" stroke="#5eead4" stroke-width="1.5"/>
+<circle cx="780" cy="680" r="9" fill="#5eead4" opacity="0"><animate attributeName="opacity" dur="14s" repeatCount="indefinite" calcMode="discrete" values="0.0;0.0;1.0;1.0" keyTimes="0.0000;0.8570;0.8571;1.0000"/></circle>
+<text x="780" y="684" text-anchor="middle" class="n">7</text>
+<text x="780" y="706" text-anchor="middle" class="s">Response</text>
+<text x="914" y="684" class="c">→ request n+1</text>
+</svg>

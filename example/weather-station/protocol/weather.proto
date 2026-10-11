@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package weather.v1;
+
+// One measurement uploaded by a station. Field numbers are frozen (see protocol ICD).
+message Reading {
+  uint32 station_id = 1;
+  uint32 seq = 2;          // per-station sequence number, for idempotent storage
+  uint32 timestamp_s = 3;  // UTC seconds
+  uint32 rh_tenths = 4;    // 0..1000 = 0.0..100.0 %RH
+  uint32 battery_mv = 5;
+  reserved 6;              // was temperature_c
+}

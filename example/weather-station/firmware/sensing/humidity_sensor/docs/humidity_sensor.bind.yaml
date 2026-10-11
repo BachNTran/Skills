@@ -1,0 +1,2 @@
+REQ-HUM-001: [include/humidity_sensor/humidity_sensor.hpp, src/humidity_sensor.cpp, test/test_humidity_sensor.cpp]
+REQ-HUM-002: [include/humidity_sensor/humidity_sensor.hpp, src/humidity_sensor.cpp, test/test_humidity_sensor.cpp]

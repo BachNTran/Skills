@@ -1,0 +1,7 @@
+project: modgate
+criticality: L1
+diagrams: mermaid
+coding_standard: google
+targets:
+  host: "{python} -m pytest -q"   # modgate's own interpreter: works in the dev venv (pip install -e '.[dev]')
+vendor: [src/modgate/_vendor]   # PyYAML 6.0.3 pure-Python (MIT): hashed, exempt from SIZE/UNBOUND

@@ -1,0 +1,8 @@
+project: weather-station
+criticality: L2
+diagrams: mermaid
+coding_standard: google
+targets:
+  linux-sim: "sh {root}/firmware/targets/linux-sim/run-module-tests.sh"
+  host: "python3 -m pytest -q"
+  web: "node --test"

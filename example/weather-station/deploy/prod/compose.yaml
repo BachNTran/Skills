@@ -1,0 +1,13 @@
+services:
+  ingest:
+    image: ghcr.io/example/weather-ingest:1.0.0
+    env_file: config/prod.env
+    secrets: [station_token]
+    volumes: ["telemetry:/var/lib/telemetry"]
+    ports: ["443:8443"]
+    restart: unless-stopped
+volumes:
+  telemetry: {}
+secrets:
+  station_token:
+    external: true   # value lives only in the host's docker secret store (see secrets map)
