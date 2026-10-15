@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/skills/wiki/scripts/wiki.py pending --hook"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 30,
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/skills/wiki/scripts/wiki.py sync --hook"
+          }
+        ]
+      }
+    ]
+  }
+}

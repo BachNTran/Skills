@@ -1,12 +1,18 @@
-// wiki — file tree + reader + 2D/3D graph + feedback. Offline; vendored libs only.
+// wiki — file tree + reader + 2D/3D graph + Systems/Code maps + feedback. Offline; vendored libs only.
 const $ = (s) => document.querySelector(s);
 const KINDS = ['wrong', 'outdated', 'unclear', 'question', 'idea', 'answer', 'praise'];
-const VIEWS = ['read', 'graph2d', 'graph3d'];
+const VIEWS = ['read', 'graph2d', 'graph3d', 'systems', 'code'];
+const isMap = (v) => v === 'systems' || v === 'code';
 const CALM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const LIGHT = matchMedia('(prefers-color-scheme: light)').matches;
 const FONT = getComputedStyle(document.body).fontFamily;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const getJSON = async (url) => (await fetch(url)).json();
+const fetchJSON = async (url) => { // like getJSON, but a non-2xx answer throws an Error carrying .status
+  const r = await fetch(url);
+  if (!r.ok) throw Object.assign(new Error(`${r.status} ${url}`), { status: r.status });
+  return r.json();
+};
 const el = (tag, props = {}) => Object.assign(document.createElement(tag), props);
 const append = (node, kids) => { node.append(...kids); return node; };
 
@@ -21,6 +27,7 @@ const ICON = {
   figure: svg('<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.6"/><circle cx="5.6" cy="6.4" r="1"/><path d="m2 12 3.6-3.2 2.6 2.2 2.2-2L14 12"/>'),
   module: svg('<path d="M8 1.6 13.7 4.8v6.4L8 14.4l-5.7-3.2V4.8z"/><circle cx="8" cy="8" r="1.7"/>'),
   copy: svg('<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>'),
+  source: svg('<path d="M5.2 4.5 1.8 8l3.4 3.5M10.8 4.5 14.2 8l-3.4 3.5M9.2 2.8 6.8 13.2"/>'),
 };
 
 // What a person reads for an item: its title, never a file name. A title that is only the file name
@@ -162,21 +169,48 @@ const setDrawer = (on) => {
 $('#files').onclick = () => setDrawer(!document.body.classList.contains('drawer'));
 $('#scrim').onclick = () => setDrawer(false);
 
-// ---------- views: Read · Graph 2D · Graph 3D ----------
-let view = 'read', graph = null, graphLoading = null;
+// ---------- views: Read · Graph 2D · Graph 3D · Systems · Code ----------
+const TEST = new URLSearchParams(location.hash.slice(1)).get('test') === '1';
+let view = 'read', graph = null, graphLoading = null, mapView = null, mapLoading = null;
+let mapAt = '.', mapSel = '', find = '', src = null, srcFromMap = false; // src: {path, line, end} while the reader shows code
+if (wiki.map) for (const b of $('#views').children) if (isMap(b.dataset.view)) b.hidden = false;
 const saved = () => { try { return localStorage.getItem('wiki.view'); } catch { return null; } };
 const hashState = () => {
-  const h = new URLSearchParams(location.hash.slice(1));
-  return { view: VIEWS.includes(h.get('view')) ? h.get('view') : null, item: h.get('item') || '' };
+  const h = new URLSearchParams(location.hash.slice(1)), v = h.get('view');
+  return { view: VIEWS.includes(v) ? v : null, item: h.get('item') || '', find: h.get('find') || '',
+    at: h.get('at') || '', sel: h.get('sel') || '', src: h.get('src') || '', line: h.get('line') || '' };
 };
-function writeHash() {
-  const h = new URLSearchParams({ view, ...(current ? { item: current.id } : {}) }).toString();
-  if (location.hash.slice(1) !== h) location.hash = h;
+const lineRange = (spec) => { const [a, b] = String(spec || '').split('-').map((n) => parseInt(n, 10) || 0); return [a, b || a]; };
+function hashFor() { // only the keys that apply to the view
+  const h = { view };
+  if (view === 'read') {
+    if (src) { h.src = src.path; if (src.line) h.line = src.end > src.line ? `${src.line}-${src.end}` : `${src.line}`; }
+    else if (current) { h.item = current.id; if (find) h.find = find; }
+  } else if (isMap(view)) {
+    if (mapAt && mapAt !== '.') h.at = mapAt;
+    if (mapSel) h.sel = mapSel;
+  } else if (current && !src) h.item = current.id;
+  if (TEST) h.test = '1';
+  return new URLSearchParams(h).toString();
+}
+function writeHash(replace = false) { // a selection change replaces the entry; a new level or page pushes one
+  const h = hashFor();
+  if (location.hash.slice(1) === h) return;
+  // pushState fires no hashchange for our own writes (a map flight emits once, at its end); back/forward still do
+  if (replace) history.replaceState(null, '', `#${h}`); else history.pushState(null, '', `#${h}`);
 }
 const HINT = {
   graph2d: 'Drag to pan · scroll to zoom · click a node to read',
   graph3d: 'Drag to orbit · right-drag to pan · scroll to zoom · click to read',
+  systems: 'Drag to pan · scroll to zoom into a block · double-click or Enter to open it · Backspace goes up',
+  code: 'Drag to pan · scroll to zoom into a file · double-click or Enter to open it · s shows the source',
 };
+function markView(v) { // the radio group, body flag and remembered view
+  view = v;
+  try { localStorage.setItem('wiki.view', v); } catch { /* private mode: the view is not remembered */ }
+  document.body.dataset.view = v;
+  for (const b of $('#views').children) b.setAttribute('aria-checked', String(b.dataset.view === v));
+}
 function loadGraph() { // vendor scripts and graph.js load on first use, never for Read-only visits
   graphLoading ||= new Promise((ok, fail) => {
     document.head.append(el('script', { src: '/assets/vendor/3d-force-graph.min.js', onload: ok, onerror: () => fail(new Error('3d-force-graph')) }));
@@ -185,19 +219,45 @@ function loadGraph() { // vendor scripts and graph.js load on first use, never f
       wiki, host: $('#graph'), legend: $('#legend'), hint: $('#hint'), tools: $('#gtools'), dim: view === 'graph2d' ? 2 : 3,
       onOpen: (it) => { open(it); setView('read'); },
     });
-    graph.select(current);
+    if (current && current.kind !== 'source') graph.select(current);
   });
   return graphLoading;
 }
+function loadMap() { // map/view.js (and through it the canvas engine) load on first use
+  mapLoading ||= import('./map/view.js').then(({ createMapView }) => {
+    mapView = createMapView({
+      root: $('#mapview'), getJSON: fetchJSON, openDoc, openSource,
+      onState: ({ lens, at, sel }) => {
+        const moved = (at || '.') !== mapAt || (isMap(view) && lens !== view);
+        mapAt = at || '.'; mapSel = sel || '';
+        if (!isMap(view)) return;
+        if (lens !== view && isMap(lens)) markView(lens); // hand-off or `l` inside the map
+        writeHash(!moved);
+      },
+    });
+  }).catch((err) => { mapLoading = null; throw err; });
+  return mapLoading;
+}
 async function setView(v) {
-  if (!VIEWS.includes(v)) v = 'read';
-  view = v;
-  try { localStorage.setItem('wiki.view', v); } catch { /* private mode: the view is not remembered */ }
-  document.body.dataset.view = v;
-  for (const b of $('#views').children) b.setAttribute('aria-checked', String(b.dataset.view === v));
-  $('#readview').hidden = v !== 'read'; $('#graphview').hidden = v === 'read';
+  if (!VIEWS.includes(v) || (isMap(v) && !wiki.map)) v = 'read';
+  const was = view;
+  markView(v);
+  $('#readview').hidden = v !== 'read'; $('#graphview').hidden = !v.startsWith('graph'); $('#mapview').hidden = !isMap(v);
+  if (isMap(was) && !isMap(v)) mapView?.leave();
   writeHash(); showPick();
-  if (v === 'read') { if (current && current.kind !== 'exhibit') mermaidize(body); return; } // diagrams wait until they can be measured
+  if (isMap(v)) {
+    $('#map').setAttribute('aria-description', HINT[v]);
+    try {
+      await loadMap();
+    } catch (err) {
+      console.warn('map', err);
+      $('#map-empty').hidden = false; $('#map-empty').textContent = 'The map could not load.';
+      return;
+    }
+    if (view === v) await mapView.enter(v, mapAt, mapSel);
+    return;
+  }
+  if (v === 'read') { if (current && current.kind !== 'exhibit' && current.kind !== 'source') mermaidize(body); return; } // diagrams wait until they can be measured
   $('#hint').textContent = HINT[v];
   $('#gload').hidden = !!graph;
   try {
@@ -211,10 +271,10 @@ async function setView(v) {
 }
 for (const b of $('#views').children) b.onclick = () => setView(b.dataset.view);
 
-// The open item, offered as a way back to the page while a graph is showing.
+// The open item, offered as a way back to the page while a graph is showing (not in Read or the maps).
 function showPick() {
   const b = $('#pick');
-  b.hidden = !current || view === 'read';
+  b.hidden = !current || view === 'read' || isMap(view);
   if (b.hidden) return;
   b.replaceChildren(el('span', { className: 'ic', innerHTML: ICON[current.kind] || ICON.page }), el('span', { className: 'nm', textContent: current.title }), el('span', { className: 'go', textContent: 'Read' }));
   b.title = `Read ${current.name}`;
@@ -237,6 +297,8 @@ function renderMeta() {
   const chip = (cls, html, title) => `<span class="chip ${cls}"${title ? ` title="${esc(title)}"` : ''}>${html}</span>`;
   $('#r-meta').innerHTML = [
     chip(`k-${current.kind}`, `<span class="ic">${ICON[current.kind] || ICON.page}</span>${esc(current.kind)}`),
+    src && chip('path', esc(src.path), 'repository path'),
+    src?.line && chip('ver', src.end > src.line ? `lines ${src.line}–${src.end}` : `line ${src.line}`),
     fm.version && chip('ver', `v${esc(fm.version.replace(/^v/i, ''))}`, 'version'),
     fm.status && chip('st', esc(fm.status), 'status'),
     open && chip('fbk', `${open} open feedback`),
@@ -254,9 +316,10 @@ function linkSection(title, ids) {
 }
 
 async function open(it) {
-  current = it; quote = ''; fm = {};
+  current = it; quote = ''; fm = {}; find = ''; src = null;
   expandTo(it); focusPath = it.id; renderTree();
   graph?.select(it);
+  mapView?.select(it.id);
   writeHash(); showPick();
   if (document.body.classList.contains('drawer')) setDrawer(false);
   closeComposer();
@@ -267,6 +330,7 @@ async function open(it) {
   $('#readview').classList.toggle('exhibit', exhibit);
   body.className = exhibit ? 'md exhibit' : 'md';
   body.replaceChildren(); reader.scrollTop = 0;
+  $('#outline').hidden = true;
   if (it.kind === 'figure') { // <img> never runs script; the server adds a CSP on top. CSS/SMIL animate inside.
     body.append(append(el('figure'), [el('img', { className: 'figure', src: `/figure?id=${encodeURIComponent(it.id)}`, alt: it.name })])); // the title above is the caption
   } else if (exhibit) {
@@ -349,6 +413,85 @@ reader.addEventListener('scroll', () => { cancelAnimationFrame(spyTick); spyTick
 const jump = (id) => document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: CALM ? 'auto' : 'smooth' });
 outline.addEventListener('click', (e) => { const a = e.target.closest('a[data-h]'); if (a) { e.preventDefault(); jump(a.dataset.h); } });
 
+// From the map: open a doc and land on a heading or line. The reader's own heading slugs are used, never re-made.
+async function openDoc(item, findText) {
+  const it = byId.get(item);
+  if (!it) return false;
+  await open(it);
+  find = findText || '';
+  await setView('read');
+  if (find) jumpText(find);
+  return true;
+}
+function jumpText(t) { // a heading named t, else one starting with t, else the first block containing t
+  const heads = [...body.querySelectorAll('h1, h2, h3, h4')];
+  const hit = heads.find((h) => h.dataset.t === t) || heads.find((h) => h.dataset.t?.startsWith(t))
+    || [...body.querySelectorAll('li, p, td, th, h1, h2, h3, h4')].find((n) => n.textContent.includes(t));
+  if (!hit) return false;
+  hit.scrollIntoView({ block: 'center' });
+  hit.classList.remove('flash'); void hit.offsetWidth; hit.classList.add('flash');
+  setTimeout(() => hit.classList.remove('flash'), 1200);
+  return true;
+}
+
+// Source reader: a code file the map indexed, as numbered plain-text lines (textContent only; no highlighting).
+async function openSource(path, line, end) {
+  const name = path.split('/').at(-1) || path;
+  const a = Math.max(0, parseInt(line, 10) || 0), b = Math.max(a, parseInt(end, 10) || a);
+  if (isMap(view)) srcFromMap = true;
+  else if (!src) srcFromMap = false;
+  current = { id: path, kind: 'source', title: name, name, path, links: [], ids: [] };
+  src = { path, line: a, end: b }; find = ''; quote = ''; fm = {};
+  renderTree(); closeComposer();
+  await setView('read');
+  $('#r-head').hidden = false; $('#r-title').textContent = name; $('#fb-sent').textContent = '';
+  $('#r-raw').href = `/api/source?path=${encodeURIComponent(path)}`;
+  renderMeta(); setOutline([]);
+  $('#readview').classList.remove('exhibit');
+  body.className = 'md source';
+  body.replaceChildren(el('p', { className: 'empty', textContent: 'Loading source…' })); reader.scrollTop = 0;
+  const back = el('button', { type: 'button', className: 'btn', textContent: srcFromMap ? 'Back to map' : 'Show in map' });
+  back.onclick = () => {
+    if (srcFromMap) { history.back(); return; }
+    mapAt = path; mapSel = ''; setView('code');
+  };
+  back.hidden = !wiki.map;
+  let text;
+  try {
+    const r = await fetch(`/api/source?path=${encodeURIComponent(path)}`);
+    if (!r.ok) throw Object.assign(new Error(String(r.status)), { status: r.status });
+    text = await r.text();
+  } catch (err) {
+    if (src?.path !== path) return;
+    body.replaceChildren(append(el('div', { className: 'src-head' }), [el('code', { textContent: path }), back]),
+      el('p', { className: 'empty', textContent: err.status === 415 ? 'Binary file: not shown.' : 'This file is not available.' }));
+    return;
+  }
+  if (src?.path !== path || current?.id !== path) return; // the reader moved on meanwhile
+  const lines = text.split(/\r?\n/);
+  if (lines.length > 1 && lines.at(-1) === '') lines.pop();
+  const ol = el('ol', { className: 'src' });
+  ol.setAttribute('aria-label', `${path}, ${lines.length} lines`);
+  ol.append(...lines.map((t, i) => {
+    const li = el('li', { textContent: t });
+    if (a && i + 1 >= a && i + 1 <= b) li.className = 'hit';
+    return li;
+  }));
+  const n = el('span', { className: 'src-n', textContent: `${lines.length} line${lines.length === 1 ? '' : 's'}` }); // the path is in the meta chips
+  body.replaceChildren(append(el('div', { className: 'src-head' }), [n, back]), ol);
+  revealHits(ol);
+}
+
+/** Scroll the hit lines into the reader only as far as needed, so the file name and path stay in view. */
+function revealHits(ol) {
+  const hits = ol.querySelectorAll('li.hit'), box = $('#reader')?.getBoundingClientRect();
+  if (!hits.length || !box) return;
+  const f = hits[0].getBoundingClientRect(), l = hits[hits.length - 1].getBoundingClientRect();
+  if (f.top >= box.top && l.bottom <= box.bottom) return; // already fully visible: no scroll
+  if (l.bottom - f.top > box.height - 32) { hits[0].scrollIntoView({ block: 'center' }); return; }
+  $('#reader').scrollTop += f.top < box.top ? f.top - box.top - 16 : l.bottom - box.bottom + 16;
+}
+
 function resolveRel(from, href) {
   let path;
   try { path = decodeURIComponent(href.split(/[#?]/)[0]); } catch { return ''; }
@@ -413,7 +556,7 @@ function compose(pre = {}) {
   syncComposer();
   requestAnimationFrame(() => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); });
 }
-function closeComposer() { form.hidden = true; $('#fb-open').hidden = !current; }
+function closeComposer() { form.hidden = true; $('#fb-open').hidden = !current || current.kind === 'source'; }
 $('#fb-open').addEventListener('pointerdown', () => { quote = grabSelection(); });
 $('#fb-open').onclick = () => compose({ quote: quote || grabSelection() });
 $('#fb-cancel').onclick = closeComposer;
@@ -442,7 +585,9 @@ addEventListener('message', (e) => {
 });
 
 addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return; // the map handled it
   const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
+  if (e.key === '/' && !typing && isMap(view)) { e.preventDefault(); $('#map-q').focus(); return; }
   if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
     e.preventDefault();
     if (matchMedia('(max-width: 760px)').matches) setDrawer(true); else filter.focus();
@@ -453,22 +598,45 @@ addEventListener('keydown', (e) => {
   else if (!form.hidden) closeComposer();
 });
 
-// ---------- start: #view=<read|graph2d|graph3d>&item=<repo-relative path>; back/forward follow the hash ----------
+// ---------- start: #view=<view>&item=… | &find=… | &src=…&line=N-M | &at=…&sel=…; back/forward follow the hash ----------
 async function applyHash() {
   const h = hashState();
-  if (h.item && byId.has(h.item) && byId.get(h.item) !== current) await open(byId.get(h.item));
+  if (h.view === 'read' && h.src) {
+    const [a, b] = lineRange(h.line);
+    if (src?.path !== h.src || src.line !== a || src.end !== b) await openSource(h.src, a, b);
+    else if (view !== 'read') await setView('read');
+    return;
+  }
+  if (h.item && byId.has(h.item) && (byId.get(h.item) !== current || src)) await open(byId.get(h.item));
+  if (isMap(h.view)) {
+    mapAt = h.at || '.'; mapSel = h.sel || '';
+    if (h.view !== view) await setView(h.view);
+    else await mapView?.enter(h.view, mapAt, mapSel);
+    return;
+  }
   if (h.view && h.view !== view) await setView(h.view);
+  if (view === 'read' && h.find && h.find !== find) { find = h.find; jumpText(find); }
 }
 body.replaceChildren(append(el('div', { className: 'welcome' }), [
   el('h2', { textContent: wiki.repo }),
-  el('p', { textContent: 'Pick a file from the tree to read it, or open a graph to see how the documents connect.' }),
+  el('p', { textContent: wiki.map ? 'Pick a file from the tree to read it, open a graph to see how the documents connect, or open Systems and Code to walk the architecture.'
+    : 'Pick a file from the tree to read it, or open a graph to see how the documents connect.' }),
 ]));
 renderTree();
 {
   const h = hashState();
-  view = h.view || (VIEWS.includes(saved()) ? saved() : 'read');
-  if (h.item && byId.has(h.item)) await open(byId.get(h.item));
-  await setView(view);
+  let v = h.view || (VIEWS.includes(saved()) ? saved() : 'read');
+  if (isMap(v) && !wiki.map) v = 'read'; // a saved or linked map view, on a wiki without maps
+  mapAt = h.at || '.'; mapSel = h.sel || '';
+  if (v === 'read' && h.src) {
+    const [a, b] = lineRange(h.line);
+    await openSource(h.src, a, b);
+  } else {
+    view = v;
+    if (h.item && byId.has(h.item)) await open(byId.get(h.item));
+    await setView(v);
+    if (v === 'read' && h.find && current) { find = h.find; writeHash(true); jumpText(find); }
+  }
 }
 addEventListener('hashchange', applyHash);
 }

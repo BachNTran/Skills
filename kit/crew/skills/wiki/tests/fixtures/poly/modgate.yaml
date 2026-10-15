@@ -1,0 +1,8 @@
+project: poly
+criticality: L1
+diagrams: mermaid
+vendor: [vendor]        # third-party code: one opaque dir node, never extracted
+ignore: ["*.tmp"]
+targets:
+  host: "python3 -m pytest -q"   # not run by the map tests
+  web: "node --test"

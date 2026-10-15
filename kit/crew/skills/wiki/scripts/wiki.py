@@ -6,6 +6,8 @@ Standard library only (Python >= 3.10).
   serve    <repo> [--port 7790] [--data-dir D] [--open]
   feedback <repo> [--all] [--json] [--data-dir D]     list open (or all) feedback
   resolve  <repo> <F-id> --note "..." [--data-dir D]  append a resolution record
+Systems/Code maps and doc checks (package wikimap, next to this script):
+  map | check | sync | pending | ack | show | trace | install-hooks  [...]   see `wiki.py <cmd> --help`
 """
 from __future__ import annotations
 
@@ -17,16 +19,16 @@ import os
 import posixpath
 import re
 import secrets
-import subprocess
 import sys
 import threading
+import time
 from collections import Counter
 from datetime import datetime
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-ASSETS = (Path(__file__).resolve().parent.parent / "assets").resolve()
+SCRIPTS = Path(__file__).resolve().parent
+ASSETS = (SCRIPTS.parent / "assets").resolve()
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "build", "dist", "__pycache__", ".wiki"}
 CLAUDE_KEEP = {"agents", "skills"}
 MAX_FILE = 5 * 1024 * 1024
@@ -306,12 +308,74 @@ def resolve(data: Path, fid: str, note: str) -> dict:
     return rec
 
 
+# ---------- Systems/Code map (package wikimap beside this script; optional at serve time) ----------
+
+MAP_CMDS = ("map", "check", "sync", "pending", "ack", "show", "trace", "install-hooks")
+LENSES = ("systems", "code")
+TRACE_DIRS = ("in", "out", "both")
+MAX_PARAM = 1024
+MAP_REFRESH_S = 2.0
+SOURCE_CSP = "sandbox; default-src 'none'"
+NO_MAP = {"error": "map not available"}
+
+
+def _import_wikimap():
+    if str(SCRIPTS) not in sys.path:
+        sys.path.insert(0, str(SCRIPTS))
+    import wikimap
+    return wikimap
+
+
+def load_map_lib():
+    """The wikimap package, or None when it cannot be imported: the wiki then runs without its maps."""
+    try:
+        lib = _import_wikimap()
+    except Exception:  # any failure (missing, broken, wrong Python) only turns the maps off
+        return None
+    return lib if callable(getattr(lib, "open_map", None)) else None  # a bare namespace package is not the map
+
+
+class BadParam(ValueError):
+    pass
+
+
+def param(q: dict, name: str, default=None, *, choices=None, lo=None, hi=None, maxlen=MAX_PARAM):
+    """One query value, validated. Missing -> default (or BadParam when required); ints by digits only."""
+    vals = q.get(name)
+    if not vals or vals[0] == "":
+        if default is None:
+            raise BadParam(f"{name} is required")
+        return default
+    v = vals[0]
+    if len(v) > maxlen:
+        raise BadParam(f"{name} is longer than {maxlen} characters")
+    if choices is not None and v not in choices:
+        raise BadParam(f"{name} must be one of {'|'.join(choices)}")
+    if lo is not None:
+        if not re.fullmatch(r"[0-9]{1,4}", v) or not lo <= int(v) <= hi:
+            raise BadParam(f"{name} must be an integer {lo}-{hi}")
+        return int(v)
+    return v
+
+
 # ---------- server ----------
 
 def make_server(repo, data_dir=None, port=7790) -> ThreadingHTTPServer:
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # serve-only: keeps map/hook commands fast
+
     root = Path(repo).resolve()
     data = Path(data_dir) if data_dir else root / ".wiki"
-    state = {"wiki": build(root, data)}
+    state = {"wiki": build(root, data), "map": None}
+    lib = load_map_lib()
+    map_lock = threading.RLock()  # one build at a time; Map is not thread-safe
+    refreshed = [0.0]
+
+    def the_map():
+        """The Map, built on first use (incremental via its cache). Call with map_lock held."""
+        if state["map"] is None:
+            state["map"] = lib.open_map(root, data, exact=True)
+            refreshed[0] = time.monotonic()
+        return state["map"]
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "wiki"
@@ -365,18 +429,80 @@ def make_server(repo, data_dir=None, port=7790) -> ThreadingHTTPServer:
                 return False
             return True
 
+        def map_api(self, path: str, q: dict):
+            """/api/map* and /api/source. Parameters are checked before the map is built."""
+            if lib is None:
+                return self.send(404, NO_MAP)
+            try:
+                if path == "/api/map":
+                    call = lambda m: m.index()
+                elif path == "/api/map/level":
+                    lens, at = param(q, "lens", choices=LENSES), param(q, "at", ".")
+                    call = lambda m: m.level(lens, at)
+                elif path == "/api/map/node":
+                    nid = param(q, "id")
+                    call = lambda m: m.node(nid)
+                elif path == "/api/map/trace":
+                    nid, way = param(q, "id"), param(q, "dir", "both", choices=TRACE_DIRS)
+                    depth = param(q, "depth", 2, lo=1, hi=4)
+                    call = lambda m: m.trace(nid, way, depth)
+                elif path == "/api/map/search":
+                    text, limit = param(q, "q", maxlen=200), param(q, "limit", 30, lo=1, hi=100)
+                    call = lambda m: m.search(text, limit)
+                elif path == "/api/source":
+                    return self.source(param(q, "path"))
+                else:
+                    return self.send(404, "not found")
+            except BadParam as e:
+                return self.send(400, {"error": str(e)})
+            try:
+                with map_lock:
+                    m = the_map()
+                    if path == "/api/map" and time.monotonic() - refreshed[0] >= MAP_REFRESH_S:
+                        m.refresh()
+                        refreshed[0] = time.monotonic()
+                    out = call(m)
+            except Exception as e:  # a map bug must not take the wiki down
+                print(f"wiki: map error on {path}: {e!r}", file=sys.stderr)
+                return self.send(500, {"error": "map failed; see the server log"})
+            return self.send(404, {"error": "not found"}) if out is None else self.send(200, out)
+
+        def source(self, rel: str):
+            """A code file the map indexed, as inert text: 404 unless Map.source_path accepts it, 415 if binary."""
+            try:
+                with map_lock:
+                    m = the_map()
+                    p = m.source_path(rel)
+                    rec = (getattr(m, "files", None) or {}).get(rel) if p is None else None
+            except Exception as e:
+                print(f"wiki: map error on /api/source: {e!r}", file=sys.stderr)
+                return self.send(500, {"error": "map failed; see the server log"})
+            if p is None:
+                binary = isinstance(rec, dict) and (rec.get("rec") or {}).get("skip") == "binary"
+                return self.send(415, {"error": "binary file"}) if binary else self.send(404, {"error": "not found"})
+            p = Path(p).resolve()
+            if not p.is_relative_to(root) or not p.is_file() or p.stat().st_size > MAX_FILE:
+                return self.send(404, {"error": "not found"})
+            raw = p.read_bytes()
+            if b"\0" in raw[:8192]:
+                return self.send(415, {"error": "binary file"})
+            self.send(200, raw.decode("utf-8", "replace").encode("utf-8"), "text/plain; charset=utf-8",
+                      (("Content-Security-Policy", SOURCE_CSP),))
+
         def do_GET(self):
             if not self.guard():
                 return
             u = urlparse(self.path)
             q = parse_qs(u.query)
+            if u.path in ("/api/map", "/api/source") or u.path.startswith("/api/map/"):
+                return self.map_api(u.path, parse_qs(u.query, keep_blank_values=True))
             if u.path == "/":
-                return self.static("index.html")
+                return self.static("wiki.html")
             if u.path.startswith("/assets/"):
                 return self.static(unquote(u.path[len("/assets/"):]))
             if u.path == "/api/wiki":
                 state["wiki"] = build(root, data)  # rebuild on each load so edits show up on refresh
-                return self.send(200, state["wiki"])
+                return self.send(200, {**state["wiki"], "map": lib is not None})
             if u.path == "/api/feedback":
                 return self.send(200, load_feedback(data))
             if u.path == "/api/item":
@@ -432,8 +558,27 @@ def make_server(repo, data_dir=None, port=7790) -> ThreadingHTTPServer:
 
 # ---------- CLI ----------
 
+def run_map_cli(argv: list[str]) -> int:
+    """`wiki <map command> ...` -> wikimap.cli.main(argv). A hook never fails loudly when wikimap is missing."""
+    try:
+        if str(SCRIPTS) not in sys.path:
+            sys.path.insert(0, str(SCRIPTS))
+        import importlib
+        cli = importlib.import_module("wikimap.cli")
+    except Exception as e:
+        if "--hook" in argv:
+            return 0
+        print(f"E:ERROR     (root)  map not available: {e}", file=sys.stderr)
+        return 3
+    return cli.main(argv)
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(prog="wiki", description=__doc__.splitlines()[0])
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in MAP_CMDS:
+        return run_map_cli(argv)
+    ap = argparse.ArgumentParser(prog="wiki", description=__doc__.splitlines()[0],
+                                 epilog="map commands: " + " ".join(MAP_CMDS) + " (wikimap; see `wiki.py <cmd> --help`)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     for name in ("build", "serve", "feedback", "resolve"):
         s = sub.add_parser(name)
@@ -465,7 +610,8 @@ def main(argv=None) -> int:
         print(build_line(srv.state["wiki"], data))
         print(f"wiki: serving {url}  (Ctrl-C to stop)", flush=True)
         if a.open:
-            subprocess.run(["open", url], check=False)
+            import webbrowser
+            webbrowser.open(url)
         try:
             srv.serve_forever()
         except KeyboardInterrupt:

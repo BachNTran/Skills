@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package demo.v1;
+
+// One reading from a station.
+message Sample {
+  uint32 station_id = 1;
+  uint32 seq = 2;
+  int32 value_mv = 3;  // millivolts
+  uint64 ts_s = 4;
+}
+
+// Push samples upstream.
+service Feed {
+  // Send one sample, get it echoed back.
+  rpc Push(Sample) returns (Sample);
+}

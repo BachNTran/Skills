@@ -28,4 +28,4 @@ Then write a short project `CLAUDE.md` (project map, commands, project rules) �
 - `install.sh` — the installer (re-runnable, never clobbers existing settings)
 - `claude/` — the Claude instructions: `skill/`, `hooks.json`, `guideline/`, `templates/`
 - `wheels/` — the `modgate` tool (`sync` · `pending` · `approve`)
-- `crew/` — the crew pack (draft, not installed by `install.sh` yet): `skills/` (crew, caveman-plus, wiki, plus vendored ponytail, caveman, drawio, graphify, grilling — see `crew/VENDORED.md`), `agents/` (architect, builder, tester, qa, auditor, writer: hats, not headcount), `tools/` (vendor scan, copy, check).
+- `crew/` — the crew pack (draft, not installed by `install.sh` yet): `skills/` (crew, caveman-plus, wiki — the repo wiki, now also carrying the Systems and Code maps and the doc checks with their opt-in hooks — plus vendored ponytail, caveman, drawio, graphify, grilling — see `crew/VENDORED.md`), `agents/` (architect, builder, tester, qa, auditor, writer: hats, not headcount), `tools/` (vendor scan, copy, check).

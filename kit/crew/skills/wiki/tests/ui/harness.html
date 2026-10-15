@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Map engine harness</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/assets/style.css">
+<style>
+  body { display: block; }
+  #map { position: fixed; inset: 0; }
+  #map-mini { position: fixed; right: 16px; bottom: 16px; width: 168px; height: 112px; }
+</style>
+<script type="module" src="/tests/ui/levels.js"></script>
+</head>
+<body>
+<div id="map" role="application" aria-roledescription="diagram" aria-label="System map" tabindex="0"></div>
+<canvas id="map-mini" width="168" height="112" aria-hidden="true"></canvas>
+</body>
+</html>

@@ -1,0 +1,621 @@
+// wiki map — level layout. Pure and deterministic: the same level, filter and pins always give the same
+// geometry. Coordinates are world units (1 unit = 1 CSS px at zoom 1). The level frame is the box
+// (0, 0, w, h); every level node sits inside it, ghosts sit outside it.
+// Edge routes are cubic Béziers: pts = [p0, c1, c2, p1, c1, c2, p2, …] (3·segments + 1 points).
+
+export const PAD = { x: 44, top: 76, bottom: 44 };
+export const LABEL_MAX = 168;    // widest edge label line, world px at zoom 1
+const GAP_Y = 24;          // min vertical gap between blocks in one layer
+const GAP_DUMMY = 14;      // gap next to a long-edge waypoint (the route runs through it)
+const GHOST_GAP = 52;      // frame → ghost column
+const TYPE_ORDER = ['root', 'module', 'group', 'own', 'actor', 'dir', 'bucket', 'file', 'symbol'];
+const SYS = new Set(['root', 'module', 'group', 'own']);
+const BANDED = new Set(['class', 'struct', 'interface']);
+
+const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+const byStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const defMeasure = (text, role) => String(text || '').length * (role === 'label' ? 6.2 : role === 'small' ? 6 : 8.2);
+
+/** Kinds of edge e that pass filter ({kinds:Set, minConf}); {} when it is hidden. */
+export function visibleKinds(e, filter) {
+  const out = {};
+  if (!e || !e.kinds) return out;
+  if (filter && typeof filter.minConf === 'number' && (e.conf ?? 1) < filter.minConf) return out;
+  for (const k of Object.keys(e.kinds)) if (!filter || !filter.kinds || filter.kinds.has(k)) out[k] = e.kinds[k];
+  return out;
+}
+
+/** Room the header badges take (findings dot, coverage ring, status pip, crit chip), so names are not cut. */
+function badgeW(n) {
+  const b = n.badges || {};
+  return (b.findings > 0 ? 22 : 0) + (b.cov ? 18 : 0) + (b.status || b.state ? 10 : 0) + (b.crit ? 26 : 0);
+}
+
+/** Block size in world units (§8.3). */
+export function nodeSize(n, measure = defMeasure) {
+  const m = measure(n.name || n.id, 'name');
+  const cont = n.drill ? clamp(Math.sqrt(n.n || 0) / 2, 1, 2) : 1;
+  if (n.type === 'actor') return { w: clamp(48 + m, 120, 260), h: 52 };
+  if (SYS.has(n.type)) return { w: Math.round(clamp(32 + m, 168, 320) * cont), h: Math.round(92 * cont) };
+  if (n.type === 'dir' || n.type === 'bucket') return { w: Math.round(clamp(40 + m + badgeW(n), 160, 280) * cont), h: Math.round(72 * cont) };
+  if (n.type === 'file') return { w: clamp(48 + m, 150, 260), h: 56 };
+  if (n.type === 'symbol') return { w: clamp(62 + m + badgeW(n), 120, 300), h: BANDED.has(n.kind) ? 46 : 34 }; // + kind letter chip; long Class::method names
+  return { w: clamp(32 + m, 168, 320), h: 92 };
+}
+
+/** A ghost's location below what the crumbs already show: its path's parents minus the shared prefix. */
+export function ghostParents(g, crumbs) {
+  const parts = String(g.path || '').split(' › ').filter(Boolean).slice(0, -1);
+  const here = (Array.isArray(crumbs) ? crumbs : []).slice(1).map((c) => c && c.name);
+  let i = 0;
+  while (i < parts.length && i < here.length && parts[i] === here[i]) i++;
+  return parts.slice(i);
+}
+
+export function ghostSize(g, measure = defMeasure, crumbs = null) {
+  const parent = ghostParents(g, crumbs).join(' › ');
+  const sub = parent ? measure('› ' + parent, 'small') * 1.2 + 16 : 0; // room for the location even at low zoom (text has a min size)
+  return { w: Math.round(clamp(34 + measure(g.name || g.peer || g.id, 'name') * 0.86 + sub, 110, 220)), h: 30 };
+}
+
+// ---------------------------------------------------------------- Sugiyama pieces
+
+/** Eades–Lin–Smyth greedy feedback arc set: a vertex order; edges running backwards in it are back edges. */
+function greedyOrder(ids, edges) {
+  // edges: [a, b, weight]; heavier edges (declared flows) are kept forward in preference to code edges
+  const n = ids.length, outs = ids.map(() => []), ins = ids.map(() => []);
+  for (const [a, b, w = 1] of edges) { outs[a].push([b, w]); ins[b].push([a, w]); }
+  const outd = outs.map((l) => l.reduce((s, x) => s + x[1], 0)), ind = ins.map((l) => l.reduce((s, x) => s + x[1], 0));
+  const gone = new Uint8Array(n), s1 = [], s2 = [];
+  let left = n;
+  const drop = (v) => { gone[v] = 1; left--; for (const [w, x] of outs[v]) ind[w] -= x; for (const [w, x] of ins[v]) outd[w] -= x; };
+  while (left > 0) {
+    let moved = true;
+    while (moved) {
+      moved = false;
+      for (let v = 0; v < n; v++) if (!gone[v] && outd[v] <= 1e-9) { s2.push(v); drop(v); moved = true; }
+      for (let v = 0; v < n; v++) if (!gone[v] && ind[v] <= 1e-9) { s1.push(v); drop(v); moved = true; }
+    }
+    if (left === 0) break;
+    let best = -1, bd = -Infinity;
+    for (let v = 0; v < n; v++) if (!gone[v] && outd[v] - ind[v] > bd) { bd = outd[v] - ind[v]; best = v; }
+    s1.push(best); drop(best);
+  }
+  return s1.concat(s2.reverse());
+}
+
+function countCross(layers, down) {
+  let total = 0;
+  for (let L = 0; L + 1 < layers.length; L++) {
+    const pairs = [];
+    const pos = new Map(layers[L + 1].map((v, i) => [v, i]));
+    layers[L].forEach((u, i) => { for (const v of down[u]) pairs.push(i * 65536 + pos.get(v)); });
+    pairs.sort((a, b) => a - b);
+    const seq = pairs.map((p) => p & 65535);
+    total += inversions(seq);
+  }
+  return total;
+}
+function inversions(a) { // merge-sort inversion count
+  if (a.length < 2) return 0;
+  const tmp = new Array(a.length);
+  let inv = 0;
+  for (let w = 1; w < a.length; w *= 2) {
+    for (let lo = 0; lo < a.length; lo += 2 * w) {
+      const mid = Math.min(lo + w, a.length), hi = Math.min(lo + 2 * w, a.length);
+      let i = lo, j = mid, k = lo;
+      while (i < mid && j < hi) { if (a[i] <= a[j]) tmp[k++] = a[i++]; else { inv += mid - i; tmp[k++] = a[j++]; } }
+      while (i < mid) tmp[k++] = a[i++];
+      while (j < hi) tmp[k++] = a[j++];
+    }
+    for (let i = 0; i < a.length; i++) a[i] = tmp[i];
+  }
+  return inv;
+}
+
+/** Crossings between the edges of u and v (u left of v) towards one neighbouring layer. */
+function pairCross(nu, nv, pos) {
+  let c = 0;
+  for (const a of nu) { const pa = pos[a]; for (const b of nv) if (pos[b] < pa) c++; }
+  return c;
+}
+
+/**
+ * Priority placement of one layer (keeps the order, min gaps): weighted least squares towards each block's
+ * wish, solved exactly by pool-adjacent-violators. High-priority blocks (long-edge waypoints, busy nodes)
+ * weigh more, so they get closest to where they want to be. Returns top y per block.
+ */
+function placeLayer(hs, gaps, want, prio) {
+  const n = hs.length, off = new Float64Array(n), out = new Array(n), st = [];
+  for (let i = 1; i < n; i++) off[i] = off[i - 1] + hs[i - 1] + gaps[i - 1];
+  for (let i = 0; i < n; i++) {
+    let b = { s: prio[i] * (want[i] - hs[i] / 2 - off[i]), w: prio[i], a: i, z: i };
+    while (st.length && st[st.length - 1].s / st[st.length - 1].w >= b.s / b.w) {
+      const p = st.pop();
+      b = { s: p.s + b.s, w: p.w + b.w, a: p.a, z: b.z };
+    }
+    st.push(b);
+  }
+  for (const b of st) for (let i = b.a; i <= b.z; i++) out[i] = b.s / b.w + off[i];
+  return out;
+}
+
+// ---------------------------------------------------------------- routes
+
+/** Horizontal "bump" curves through points (layered routes): every segment leaves and enters level, so it
+ *  stays inside the box of its two ends and never swings into a block. */
+function bumps(points) {
+  const out = [points[0]];
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i], b = points[i + 1], h = (b[0] - a[0]) / 2;
+    out.push([a[0] + h, a[1]], [b[0] - h, b[1]], b);
+  }
+  return out.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+}
+
+/** Cubic Bézier chain through points; end tangents follow the given unit directions. */
+function spline(points, d0, d1) {
+  const P = points, m = P.length - 1, out = [P[0]];
+  const tan = P.map((p, i) => {
+    if (i === 0 || i === m) {
+      const q = i === 0 ? P[1] : P[m - 1], dir = i === 0 ? d0 : d1;
+      const len = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      const s = Math.max(28, len * (m === 1 ? 1.1 : 0.9));
+      return [dir[0] * s, dir[1] * s];
+    }
+    return [(P[i + 1][0] - P[i - 1][0]) / 2, (P[i + 1][1] - P[i - 1][1]) / 2];
+  });
+  for (let i = 0; i < m; i++) {
+    const a = P[i], b = P[i + 1], ta = tan[i], tb = tan[i + 1];
+    out.push([a[0] + ta[0] / 3, a[1] + ta[1] / 3], [b[0] - tb[0] / 3, b[1] - tb[1] / 3], b);
+  }
+  return out.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+}
+
+const SIDE_DIR = { r: [1, 0], l: [-1, 0], t: [0, -1], b: [0, 1] };
+
+/** Spread the ends on one side of a rect, ordered by the far end's coordinate. */
+function spreadPorts(list, rect) {
+  const byKey = new Map();
+  for (const p of list) { const k = p.side; (byKey.get(k) || byKey.set(k, []).get(k)).push(p); }
+  for (const [side, ps] of byKey) {
+    const vert = side === 'l' || side === 'r';
+    ps.sort((a, b) => a.far - b.far || byStr(a.key, b.key));
+    const span = vert ? rect.h : rect.w, m = ps.length;
+    const step = m > 1 ? Math.min(vert ? 14 : 22, (span * 0.62) / (m - 1)) : 0;
+    ps.forEach((p, i) => {
+      const off = (i - (m - 1) / 2) * step;
+      if (side === 'r') p.pt = [rect.x + rect.w, rect.y + rect.h / 2 + off];
+      else if (side === 'l') p.pt = [rect.x, rect.y + rect.h / 2 + off];
+      else if (side === 't') p.pt = [rect.x + rect.w / 2 + off, rect.y];
+      else p.pt = [rect.x + rect.w / 2 + off, rect.y + rect.h];
+    });
+  }
+}
+
+// ---------------------------------------------------------------- main
+
+/**
+ * level: {nodes, ghosts, edges, rev, lens, at}. measure(text, role) → width in px (role name|label|small).
+ * pins: {id: {x,y,w,h}} positions to keep (lens switch). filter: {kinds:Set, minConf}.
+ * → {w, h, mode, nodes:{id:{x,y,w,h,L,o}}, ghosts:{id:{x,y,w,h,side}}, edges:{id:{pts, back}}, order:[ids]}
+ */
+export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR' } = {}) {
+  if (dir !== 'TB') return layoutCore(level, measure, pins, filter, false);
+  // Top-to-bottom (portrait screens): lay out LR on transposed sizes, then transpose back. The frame keeps its
+  // padding (title band on top): final = (core.y - S, core.x + S), core = (final.y - S, final.x + S).
+  const S = PAD.top - PAD.x;
+  const T = (r) => ({ ...r, x: r.y - S, y: r.x + S, w: r.h, h: r.w });
+  let cpins = null;
+  if (pins) { cpins = {}; for (const [id, r] of Object.entries(pins)) cpins[id] = { x: r.y - S, y: r.x + S, w: r.h, h: r.w }; }
+  const c = layoutCore(level, measure, cpins, filter, true);
+  const nodes = {}, ghosts = {}, edges = {};
+  for (const [id, r] of Object.entries(c.nodes)) nodes[id] = T(r);
+  const POS = { in: 'top', out: 'bottom', both: 'left' };
+  for (const [id, r] of Object.entries(c.ghosts)) ghosts[id] = { ...T(r), pos: POS[r.side] || 'bottom' };
+  for (const [id, e] of Object.entries(c.edges)) edges[id] = { ...e, pts: e.pts.map(([x, y]) => [y - S, x + S]) };
+  const order = Object.keys(nodes).sort((a, b) => nodes[a].L - nodes[b].L || nodes[a].x - nodes[b].x || nodes[a].y - nodes[b].y || byStr(a, b));
+  return { w: Math.max(240, c.h - S), h: Math.max(160, c.w + S), mode: c.mode, dir: 'TB', nodes, ghosts, edges, order };
+}
+
+function layoutCore(level, measure, pins, filter, tb) {
+  const nodesIn = (level.nodes || []).slice().sort((a, b) => byStr(a.id, b.id));
+  const ghostsIn = (level.ghosts || []).slice().sort((a, b) => byStr(a.id, b.id));
+  const N = nodesIn.length, ix = new Map(nodesIn.map((n, i) => [n.id, i]));
+  const gix = new Map(ghostsIn.map((g, i) => [g.id, i]));
+  const swap = (z) => (tb ? { w: z.h, h: z.w } : z);
+  const size = nodesIn.map((n) => swap(nodeSize(n, measure)));
+  const edges = (level.edges || []).filter((e) => Object.keys(visibleKinds(e, filter)).length
+    && (ix.has(e.s) || gix.has(e.s)) && (ix.has(e.t) || gix.has(e.t)) && e.s !== e.t)
+    .sort((a, b) => byStr(a.id, b.id));
+  const inner = edges.filter((e) => ix.has(e.s) && ix.has(e.t));
+  // labels longer than LABEL_MAX wrap to two lines, so a column gap never needs more than that
+  const labelW = (e) => {
+    if (tb) return e.labels && e.labels.length ? 40 : e.n > 1 ? 24 : 0; // TB: the gap is vertical, labels need ~2 lines
+    if (!(e.labels && e.labels.length)) return e.n > 1 ? 30 : 0;
+    const m = measure(e.labels.join(' · '), 'label');
+    return (m > LABEL_MAX ? Math.min(LABEL_MAX, m * 0.55 + 12) : m) + 18;
+  };
+  const rect = new Array(N);
+  let mode, layerOf = new Array(N).fill(0);
+  const arcs = []; // back edges, routed as arcs above (or below) the drawing
+  const chains = new Map(); // edge id → [vertex refs: {x,y} centre getters]
+
+  const pinned = pins && nodesIn.some((n) => pins[n.id]);
+  if (pinned) {
+    mode = 'pinned';
+    let bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+    nodesIn.forEach((n, i) => {
+      const p = pins[n.id];
+      if (p) { rect[i] = { x: p.x, y: p.y, w: p.w, h: p.h }; bx1 = Math.max(bx1, p.x + p.w); by0 = Math.min(by0, p.y); by1 = Math.max(by1, p.y + p.h); }
+    });
+    let cx = bx1 + 72, cy = by0, colW = 0;
+    const colH = Math.max(by1 - by0, 300);
+    nodesIn.forEach((n, i) => {
+      if (rect[i]) return;
+      const s = size[i];
+      if (cy > by0 && cy + s.h > by0 + colH) { cx += colW + 48; cy = by0; colW = 0; }
+      rect[i] = { x: cx, y: cy, ...s }; cy += s.h + GAP_Y; colW = Math.max(colW, s.w);
+    });
+    nodesIn.forEach((n, i) => { layerOf[i] = Math.round(rect[i].x / 40); });
+  } else {
+    const iso = new Set([...Array(N).keys()]);
+    for (const e of inner) { iso.delete(ix.get(e.s)); iso.delete(ix.get(e.t)); }
+    const core = [...Array(N).keys()].filter((i) => !iso.has(i));
+    if (inner.length && inner.length / Math.max(1, N) >= 0.3 && sugiyama(core, iso)) {
+      mode = 'layered';
+      if (iso.size) { // blocks with no visible edge: tidy rows under the layered drawing
+        let bx0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (const i of core) { const r = rect[i]; bx0 = Math.min(bx0, r.x); bx1 = Math.max(bx1, r.x + r.w); by1 = Math.max(by1, r.y + r.h); }
+        shelf([...iso], 40, 28, bx0, by1 + 64, Math.max(bx1 - bx0, 640));
+      }
+    } else {
+      mode = 'shelf';
+      arcs.length = 0; chains.clear();
+      shelf([...Array(N).keys()], inner.length ? 96 : 40, inner.length ? 56 : 32, 0, 0, 0);
+    }
+  }
+
+  /** Grid of blocks sorted by type then name; maxW > 0 wraps rows at that width, else ceil(sqrt(n·1.6)) columns. */
+  function shelf(idx, gx, gy, ox, oy, maxW) {
+    const order = idx.slice().sort((a, b) => {
+      const ta = TYPE_ORDER.indexOf(nodesIn[a].type), tb = TYPE_ORDER.indexOf(nodesIn[b].type);
+      return (ta < 0 ? 99 : ta) - (tb < 0 ? 99 : tb) || byStr(nodesIn[a].name || '', nodesIn[b].name || '') || byStr(nodesIn[a].id, nodesIn[b].id);
+    });
+    let cols = Math.max(1, Math.ceil(Math.sqrt(order.length * 1.6)));
+    if (maxW > 0) {
+      const avg = order.reduce((s2, i) => s2 + size[i].w, 0) / Math.max(1, order.length);
+      cols = Math.max(1, Math.min(order.length, Math.floor((maxW + gx) / (avg + gx))));
+    }
+    const cw = [], rh = [];
+    order.forEach((i, k) => { const c = k % cols, r = Math.floor(k / cols); cw[c] = Math.max(cw[c] || 0, size[i].w); rh[r] = Math.max(rh[r] || 0, size[i].h); });
+    const xs = [ox], ys = [oy];
+    for (let c = 1; c < cw.length; c++) xs[c] = xs[c - 1] + cw[c - 1] + gx;
+    for (let r = 1; r < rh.length; r++) ys[r] = ys[r - 1] + rh[r - 1] + gy;
+    order.forEach((i, k) => {
+      const c = k % cols, r = Math.floor(k / cols);
+      rect[i] = { x: xs[c], y: ys[r] + (rh[r] - size[i].h) / 2, ...size[i] };
+      layerOf[i] = maxW > 0 ? 1e6 + r : c;
+    });
+  }
+
+  /** Sugiyama LR over the core blocks. false (nothing placed) when the layering is too deep to read. */
+  function sugiyama(core, iso) {
+    const pairs = inner.map((e) => [ix.get(e.s), ix.get(e.t)]);
+    const weight = (e) => { const k = visibleKinds(e, filter); return k.flow ? 4 : k.dep ? 2 : k.inherit ? 1.5 : 1; };
+    const ord = greedyOrder(nodesIn.map((n) => n.id), inner.map((e, i) => [...pairs[i], weight(e)])).filter((v) => !iso.has(v));
+    const pos = new Array(N); ord.forEach((v, i) => { pos[v] = i; });
+    const dag = pairs.map(([a, b]) => (pos[a] < pos[b] ? [a, b, false] : [b, a, true]));
+    // longest-path layering in the FAS order (a topological order of the DAG)
+    const succ = nodesIn.map(() => []), pred = nodesIn.map(() => []);
+    for (const [a, b] of dag) { succ[a].push(b); pred[b].push(a); }
+    const layer = new Array(N).fill(0);
+    for (const v of ord) for (const w of succ[v]) layer[w] = Math.max(layer[w], layer[v] + 1);
+    // promotion: pull each vertex right next to its nearest successor
+    for (let i = ord.length - 1; i >= 0; i--) {
+      const v = ord[i];
+      if (!succ[v].length) continue;
+      const lim = Math.min(...succ[v].map((w) => layer[w])) - 1;
+      if (lim > layer[v]) layer[v] = lim;
+    }
+    // layer width cap
+    const cap = Math.ceil(1.5 * Math.sqrt(N));
+    for (let L = 0; L <= Math.max(0, ...core.map((v) => layer[v])); L++) {
+      let members = core.filter((v) => layer[v] === L);
+      while (members.length > cap) {
+        const can = members.filter((v) => succ[v].every((w) => layer[w] >= L + 2))
+          .sort((a, b) => (succ[a].length + pred[a].length) - (succ[b].length + pred[b].length) || byStr(nodesIn[b].id, nodesIn[a].id));
+        if (!can.length) break;
+        layer[can[0]] = L + 1;
+        members = members.filter((v) => v !== can[0]);
+      }
+    }
+    if (Math.max(0, ...core.map((v) => layer[v])) + 1 > Math.max(12, 2 * cap)) return false;
+    // vertices: real nodes then waypoints for spans > 1 (back edges are arcs, not waypoints)
+    const V = nodesIn.map((n, i) => ({ real: i, L: layer[i], h: size[i].h, key: n.id, skip: iso.has(i) }));
+    const down = V.map(() => []), up = V.map(() => []);
+    dag.forEach(([a, b, back], k) => {
+      const e = inner[k];
+      if (back) { arcs.push({ e, s: ix.get(e.s), t: ix.get(e.t) }); return; }
+      const chain = [a];
+      let prev = a;
+      for (let L = layer[a] + 1; L < layer[b]; L++) {
+        const d = V.length;
+        V.push({ real: -1, L, h: 2, key: `${e.id}~${L}` }); down.push([]); up.push([]);
+        down[prev].push(d); up[d].push(prev); chain.push(d); prev = d;
+      }
+      down[prev].push(b); up[b].push(prev); chain.push(b);
+      chains.set(e.id, chain);
+    });
+    const nL = Math.max(...V.filter((v) => !v.skip).map((v) => v.L)) + 1;
+    let layers = Array.from({ length: nL }, () => []);
+    V.forEach((v, i) => { if (!v.skip) layers[v.L].push(i); });
+    for (const l of layers) l.sort((a, b) => byStr(V[a].key, V[b].key));
+    const P = new Float64Array(V.length);
+    const setPos = () => { for (const l of layers) l.forEach((v, i) => { P[v] = i; }); };
+    setPos();
+    let best = layers.map((l) => l.slice()), bestC = countCross(layers, down);
+    const bary = (v, nb) => (nb.length ? nb.reduce((s2, w) => s2 + P[w], 0) / nb.length : P[v]);
+    const transpose = (l, L) => {
+      for (let pass = 0, improved = true; improved && pass < 4; pass++) {
+        improved = false;
+        for (let i = 0; i + 1 < l.length; i++) {
+          const u = l[i], v = l[i + 1];
+          let c0 = 0, c1 = 0;
+          if (L > 0) { c0 += pairCross(up[u], up[v], P); c1 += pairCross(up[v], up[u], P); }
+          if (L + 1 < nL) { c0 += pairCross(down[u], down[v], P); c1 += pairCross(down[v], down[u], P); }
+          if (c1 < c0) { l[i] = v; l[i + 1] = u; P[v] = i; P[u] = i + 1; improved = true; }
+        }
+      }
+    };
+    const big = V.length > 900;
+    for (let sweep = 0; sweep < (big ? 6 : 12) && bestC > 0; sweep++) {
+      const downward = sweep % 2 === 0;
+      const seq = downward ? [...Array(nL).keys()].slice(1) : [...Array(nL).keys()].reverse().slice(1);
+      for (const L of seq) {
+        const l = layers[L];
+        const bc = new Map(l.map((v) => [v, bary(v, downward ? up[v] : down[v])]));
+        l.sort((a, b) => bc.get(a) - bc.get(b) || P[a] - P[b]);
+        l.forEach((v, i) => { P[v] = i; });
+      }
+      if (!big) for (let L = 0; L < nL; L++) transpose(layers[L], L);
+      const c = countCross(layers, down);
+      if (c < bestC) { bestC = c; best = layers.map((l) => l.slice()); }
+    }
+    layers = best; setPos();
+    // x: columns, gap wide enough for the widest label crossing it
+    const colW = layers.map((l) => Math.max(0, ...l.map((v) => (V[v].real >= 0 ? size[V[v].real].w : 0))));
+    const gapW = new Array(nL).fill(0);
+    for (const e of inner) {
+      const ch = chains.get(e.id); if (!ch) continue;
+      const lw = labelW(e);
+      for (let i = 0; i + 1 < ch.length; i++) gapW[V[ch[i]].L] = Math.max(gapW[V[ch[i]].L], lw);
+    }
+    const colX = [0];
+    for (let L = 1; L < nL; L++) colX[L] = colX[L - 1] + colW[L - 1] + clamp(gapW[L - 1] + 40, 88, LABEL_MAX + 72);
+    const cx = (v) => colX[V[v].L] + colW[V[v].L] / 2;
+    // y: priority placement, 4 sweeps
+    const Y = new Float64Array(V.length);
+    for (const l of layers) {
+      const tot = l.reduce((s2, v) => s2 + V[v].h, 0) + GAP_Y * Math.max(0, l.length - 1);
+      let y = -tot / 2;
+      for (const v of l) { Y[v] = y; y += V[v].h + GAP_Y; }
+    }
+    const gapOf = (l) => l.slice(0, -1).map((v, i) => (V[v].real < 0 || V[l[i + 1]].real < 0 ? GAP_DUMMY : GAP_Y));
+    for (let sweep = 0; sweep < 4; sweep++) {
+      const downward = sweep % 2 === 0;
+      const seq = downward ? [...Array(nL).keys()].slice(1) : [...Array(nL).keys()].reverse().slice(1);
+      for (const L of seq) {
+        const l = layers[L];
+        const hs = l.map((v) => V[v].h);
+        const want = l.map((v) => {
+          const nb = downward ? up[v] : down[v];
+          return nb.length ? nb.reduce((s2, w) => s2 + Y[w] + V[w].h / 2, 0) / nb.length : Y[v] + V[v].h / 2;
+        });
+        const prio = l.map((v) => (V[v].real < 0 ? 3 : 1 + 0.5 * (up[v].length + down[v].length)));
+        const ys = placeLayer(hs, gapOf(l), want, prio);
+        l.forEach((v, i) => { Y[v] = ys[i]; });
+      }
+    }
+    V.forEach((v, i) => {
+      if (v.skip) return;
+      if (v.real >= 0) { const s2 = size[v.real]; rect[v.real] = { x: cx(i) - s2.w / 2, y: Y[i], w: s2.w, h: s2.h }; layerOf[v.real] = v.L; }
+      v.cx = cx(i); v.cy = Y[i] + v.h / 2; v.hw = colW[v.L] / 2;
+    });
+    for (const [id, ch] of chains) chains.set(id, ch.map((v) => V[v]));
+    return true;
+  }
+
+  // ---- frame box: nodes (+ back-edge arcs above), padded; then translate so it starts at 0,0
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of rect) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+  if (!N) { x0 = y0 = 0; x1 = 320; y1 = 160; }
+  // back edges arc above, or below when blocks stack above both ends
+  const stacked = (r, dir) => rect.reduce((c, q) => c + (q !== r && q.x < r.x + r.w && q.x + q.w > r.x && (dir < 0 ? q.y + q.h <= r.y : q.y >= r.y + r.h) ? 1 : 0), 0);
+  for (const a of arcs) {
+    const rs = rect[a.s], rt = rect[a.t];
+    const lo = Math.min(rs.x, rt.x), hi = Math.max(rs.x + rs.w, rt.x + rt.w);
+    a.side = stacked(rs, -1) + stacked(rt, -1) <= stacked(rs, 1) + stacked(rt, 1) ? 't' : 'b';
+    const lift = 30 + Math.min(80, 0.06 * (hi - lo));
+    if (a.side === 't') {
+      let top = Math.min(rs.y, rt.y);
+      for (const r of rect) if (r.x < hi && r.x + r.w > lo) top = Math.min(top, r.y);
+      a.apex = top - lift; y0 = Math.min(y0, a.apex - 8);
+    } else {
+      let bot = Math.max(rs.y + rs.h, rt.y + rt.h);
+      for (const r of rect) if (r.x < hi && r.x + r.w > lo) bot = Math.max(bot, r.y + r.h);
+      a.apex = bot + lift; y1 = Math.max(y1, a.apex + 8);
+    }
+  }
+  const dx = pinned ? 0 : PAD.x - x0, dy = pinned ? 0 : PAD.top - y0;
+  const W = Math.max(pinned ? x1 + PAD.x : x1 - x0 + 2 * PAD.x, 240), H = Math.max(pinned ? y1 + PAD.bottom : y1 - y0 + PAD.top + PAD.bottom, 160);
+  for (const r of rect) { r.x = Math.round(r.x + dx); r.y = Math.round(r.y + dy); }
+  for (const a of arcs) a.apex += dy;
+  for (const ch of chains.values()) for (const v of ch) { v.X = v.cx + dx; v.Y = v.cy + dy; }
+
+  // ---- ghosts: in → left column, out → right column, both → top row; ordered by their peers' barycentre
+  const gpeers = ghostsIn.map(() => []);
+  for (const e of edges) {
+    if (gix.has(e.s) && ix.has(e.t)) gpeers[gix.get(e.s)].push(ix.get(e.t));
+    if (gix.has(e.t) && ix.has(e.s)) gpeers[gix.get(e.t)].push(ix.get(e.s));
+  }
+  const grect = new Array(ghostsIn.length);
+  for (const side of ['in', 'out', 'both']) {
+    const gs = ghostsIn.map((g, i) => i).filter((i) => (ghostsIn[i].side || 'out') === side || (side === 'out' && !['in', 'both'].includes(ghostsIn[i].side)));
+    if (!gs.length) continue;
+    const sz = gs.map((i) => swap(ghostSize(ghostsIn[i], measure, level.crumbs)));
+    const horiz = side === 'both';
+    const want = gs.map((i) => {
+      const ps = gpeers[i];
+      if (!ps.length) return horiz ? W / 2 : H / 2;
+      return ps.reduce((s, p) => s + (horiz ? rect[p].x + rect[p].w / 2 : rect[p].y + rect[p].h / 2), 0) / ps.length;
+    });
+    const order = gs.map((_, k) => k).sort((a, b) => want[a] - want[b] || byStr(ghostsIn[gs[a]].id, ghostsIn[gs[b]].id));
+    const hs = order.map((k) => (horiz ? sz[k].w : sz[k].h));
+    const ys = placeLayer(hs, hs.map(() => (horiz ? 16 : 12)), order.map((k) => want[k]), order.map(() => 1));
+    order.forEach((k, j) => {
+      const s = sz[k], i = gs[k];
+      if (side === 'in') grect[i] = { x: -GHOST_GAP - s.w, y: Math.round(ys[j]), ...s, side };
+      else if (side === 'out') grect[i] = { x: W + GHOST_GAP, y: Math.round(ys[j]), ...s, side };
+      else grect[i] = { x: Math.round(ys[j]), y: -GHOST_GAP + 14 - s.h, ...s, side };
+    });
+  }
+
+  // ---- ports and routes
+  const ends = new Map(); // "n:i" | "g:i" → [port requests]
+  const req = (key, rr, side, far, eid, which) => {
+    const p = { side, far, key: eid + which, pt: null };
+    (ends.get(key) || ends.set(key, { rect: rr, list: [] }).get(key)).list.push(p);
+    return p;
+  };
+  const centre = (r) => [r.x + r.w / 2, r.y + r.h / 2];
+  const plans = [];
+  for (const e of edges) {
+    const si = ix.get(e.s), ti = ix.get(e.t), sg = gix.get(e.s), tg = gix.get(e.t);
+    const rs = si !== undefined ? rect[si] : grect[sg], rt = ti !== undefined ? rect[ti] : grect[tg];
+    const ks = si !== undefined ? `n:${si}` : `g:${sg}`, kt = ti !== undefined ? `n:${ti}` : `g:${tg}`;
+    const [sx, sy] = centre(rs), [tx, ty] = centre(rt);
+    const arc = arcs.find((a) => a.e === e);
+    let ss, ts;
+    if (arc) { ss = arc.side; ts = arc.side; }
+    else if (sg !== undefined || tg !== undefined) {
+      const g = grect[sg !== undefined ? sg : tg];
+      if (g.side === 'both') { ss = sg !== undefined ? 'b' : 't'; ts = tg !== undefined ? 'b' : 't'; }
+      else if (g.side === 'in') { ss = sg !== undefined ? 'r' : 'l'; ts = tg !== undefined ? 'r' : 'l'; }
+      else { ss = sg !== undefined ? 'l' : 'r'; ts = tg !== undefined ? 'l' : 'r'; }
+    } else if (mode === 'layered') { ss = 'r'; ts = 'l'; }
+    else {
+      const ddx = tx - sx, ddy = ty - sy;
+      if (Math.abs(ddx) * 0.7 >= Math.abs(ddy) - (rs.h + rt.h) / 2) { ss = ddx >= 0 ? 'r' : 'l'; ts = ddx >= 0 ? 'l' : 'r'; }
+      else { ss = ddy >= 0 ? 'b' : 't'; ts = ddy >= 0 ? 't' : 'b'; }
+    }
+    const ch = chains.get(e.id);
+    const farS = ch && ch.length > 2 ? (ss === 'r' || ss === 'l' ? ch[1].Y : ch[1].X) : (ss === 'r' || ss === 'l' ? ty : tx);
+    const farT = ch && ch.length > 2 ? (ts === 'r' || ts === 'l' ? ch[ch.length - 2].Y : ch[ch.length - 2].X) : (ts === 'r' || ts === 'l' ? sy : sx);
+    plans.push({ e, arc, ch, ps: req(ks, rs, ss, farS, e.id, 's'), pt: req(kt, rt, ts, farT, e.id, 't'), ss, ts });
+  }
+  for (const { rect: rr, list } of ends.values()) spreadPorts(list, rr);
+  /** A direct route that crosses a block bends around it (above or below, whichever is nearer). */
+  function detour(pts, a, b, d0, d1, e) {
+    const skip = new Set([ix.get(e.s), ix.get(e.t)]);
+    const way = [];
+    for (let iter = 0; iter < 4; iter++) {
+      const hit = crossing(pts, skip);
+      if (!hit) break;
+      const r = rect[hit.i];
+      const up = r.y - 18, down = r.y + r.h + 18;
+      const y = Math.abs(hit.y - up) <= Math.abs(hit.y - down) ? up : down;
+      way.push([r.x + r.w / 2, y]);
+      skip.add(hit.i);
+      const dir = Math.sign(b[0] - a[0]) || 1;
+      way.sort((p, q) => (p[0] - q[0]) * dir);
+      pts = spline([a, ...way, b], d0, d1);
+    }
+    return pts;
+  }
+  /** Side ports (ghost edges, shelf edges): level bump curves that pass above or below every block in the way. */
+  function bumpDetour(a, b, e) {
+    const skip = new Set([ix.get(e.s), ix.get(e.t)]);
+    const lo = Math.min(a[0], b[0]) + 1, hi = Math.max(a[0], b[0]) - 1, dir = Math.sign(b[0] - a[0]) || 1;
+    const way = [];
+    let pts = bumps([a, b]);
+    for (let iter = 0; iter < 10; iter++) {
+      const hit = crossing(pts, skip);
+      if (!hit) break;
+      const r = rect[hit.i];
+      const yOut = hit.y < r.y + r.h / 2 ? r.y - 12 : r.y + r.h + 12;
+      for (const x of [r.x - 10, r.x + r.w + 10]) way.push([clamp(x, lo, hi), yOut]);
+      skip.add(hit.i);
+      way.sort((p, q) => (p[0] - q[0]) * dir || p[1] - q[1]);
+      pts = bumps([a, ...way, b]);
+    }
+    return pts;
+  }
+  function crossing(pts, skip) {
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const q of pts) { bx0 = Math.min(bx0, q[0]); bx1 = Math.max(bx1, q[0]); by0 = Math.min(by0, q[1]); by1 = Math.max(by1, q[1]); }
+    const near = [];
+    for (let i = 0; i < rect.length; i++) {
+      const r = rect[i];
+      if (!skip.has(i) && r.x - 3 < bx1 && r.x + r.w + 3 > bx0 && r.y - 3 < by1 && r.y + r.h + 3 > by0) near.push(i);
+    }
+    if (!near.length) return null;
+    for (let j = 0; j + 3 < pts.length; j += 3) {
+      for (let s2 = 1; s2 < 40; s2++) {
+        const t = s2 / 40, u = 1 - t;
+        const x = u * u * u * pts[j][0] + 3 * u * u * t * pts[j + 1][0] + 3 * u * t * t * pts[j + 2][0] + t * t * t * pts[j + 3][0];
+        const y = u * u * u * pts[j][1] + 3 * u * u * t * pts[j + 1][1] + 3 * u * t * t * pts[j + 2][1] + t * t * t * pts[j + 3][1];
+        for (const i of near) {
+          const r = rect[i];
+          if (x > r.x - 3 && x < r.x + r.w + 3 && y > r.y - 3 && y < r.y + r.h + 3) return { i, x, y }; // grazing counts
+        }
+      }
+    }
+    return null;
+  }
+
+  const outEdges = {};
+  for (const p of plans) {
+    const a = p.ps.pt, b = p.pt.pt;
+    let pts;
+    if (p.arc) {
+      const Yc = (8 * p.arc.apex - a[1] - b[1]) / 6;
+      pts = [a, [a[0], Yc], [b[0], Yc], b].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+    } else if (p.ch && p.ch.length >= 2 && p.ss === 'r' && p.ts === 'l' && b[0] > a[0]) {
+      // layered: run level through each column (the block's own row, or the waypoint's free slot) and
+      // bend only in the empty gaps between columns, so a route never passes behind a block
+      const P = [a], gap = [];
+      const add = (q, inGap) => {
+        const l = P[P.length - 1];
+        if (Math.abs(q[0] - l[0]) < 0.5 && Math.abs(q[1] - l[1]) < 0.5) return;
+        if (q[0] < l[0]) q = [l[0], q[1]];
+        gap.push(inGap); P.push(q);
+      };
+      const s0 = p.ch[0], t0 = p.ch[p.ch.length - 1];
+      add([Math.max(a[0], s0.X + s0.hw), a[1]], false);
+      for (const v of p.ch.slice(1, -1)) { add([v.X - v.hw, v.Y], true); add([v.X + v.hw, v.Y], false); }
+      add([Math.min(b[0], t0.X - t0.hw), b[1]], true);
+      add(b, false);
+      pts = bumps(P);
+      let lab = -1, best = -1;
+      gap.forEach((g, k) => { const w = P[k + 1][0] - P[k][0]; if (g && w > best) { best = w; lab = k; } });
+      outEdges[p.e.id] = lab >= 0 ? { pts, back: false, lab } : { pts, back: false };
+      continue;
+    } else {
+      const mid = p.ch && p.ch.length > 2 ? p.ch.slice(1, -1).map((v) => [v.X, v.Y]) : [];
+      const d0 = SIDE_DIR[p.ss], d1 = SIDE_DIR[p.ts].map((d) => -d);
+      if (!mid.length && 'lr'.includes(p.ss) && 'lr'.includes(p.ts)) pts = bumpDetour(a, b, p.e);
+      else {
+        pts = spline([a, ...mid, b], d0, d1);
+        if (!mid.length && rect.length > 1) pts = detour(pts, a, b, d0, d1, p.e); // a ghost edge can cross the only other block
+      }
+    }
+    outEdges[p.e.id] = { pts, back: !!p.arc };
+  }
+
+  const nodes = {}, ghosts = {};
+  nodesIn.forEach((n, i) => { nodes[n.id] = { ...rect[i], L: layerOf[i] }; });
+  ghostsIn.forEach((g, i) => { ghosts[g.id] = grect[i] || { x: W + GHOST_GAP, y: 0, w: 110, h: 30, side: 'out' }; });
+  const order = nodesIn.map((n) => n.id).sort((a, b) => nodes[a].L - nodes[b].L || nodes[a].y - nodes[b].y || nodes[a].x - nodes[b].x || byStr(a, b));
+  return { w: Math.round(W), h: Math.round(H), mode, dir: 'LR', nodes, ghosts, edges: outEdges, order };
+}

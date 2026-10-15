@@ -204,6 +204,32 @@ kbd { font: 500 11px/1 var(--mono); color: var(--muted); border: 1px solid var(-
 .md .links a:hover { border-color: var(--mint); color: var(--ink); }
 .md .links .ic { display: grid; color: var(--mint); } .md .links .ic svg { width: 14px; height: 14px; }
 
+/* source reader: a code file from the map, numbered plain lines (no highlighting) */
+.md.source > * { max-width: none; }
+.src-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; }
+.src-head .src-n { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.md .src-head code { min-width: 0; padding: 0; background: none; border: 0; font: 12.5px/1.4 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.md ol.src {
+  counter-reset: ln; list-style: none; margin: 0; padding: 10px 0; overflow-x: auto;
+  background: var(--s1); border: 1px solid var(--line); border-radius: 12px;
+  font: 13px/1.65 var(--mono); color: var(--soft); tab-size: 4;
+}
+.md ol.src li { counter-increment: ln; display: block; width: max-content; min-width: 100%; min-height: 1.65em; margin: 0; padding: 0 18px 0 0; white-space: pre; }
+.md ol.src li::before {
+  content: counter(ln); position: sticky; left: 0; display: inline-block; width: 5.5ch; margin-right: 16px; padding-right: 10px;
+  text-align: right; color: color-mix(in srgb, var(--muted) 72%, transparent); background: var(--s1); border-right: 1px solid var(--faint); user-select: none; -webkit-user-select: none;
+}
+.md ol.src li.hit { background: var(--mint-bg); box-shadow: inset 3px 0 0 var(--mint); color: var(--ink); }
+.md ol.src li.hit::before { color: var(--mint); background: color-mix(in srgb, var(--mint) 9%, var(--s1)); }
+.chip.path { font-family: var(--mono); font-size: 11px; color: var(--soft); }
+.chip.k-source .ic { color: var(--lime); }
+/* a jump target from the map: a short lime glow */
+.md .flash { border-radius: 6px; animation: flash 1.2s var(--ease); }
+@keyframes flash {
+  0%, 35% { background: color-mix(in srgb, var(--lime) 20%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--lime) 20%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
 /* outline: on-page headings, wide screens only */
 #outline { display: none; }
 @media (min-width: 1200px) {
@@ -235,7 +261,8 @@ kbd { font: 500 11px/1 var(--mono); color: var(--muted); border: 1px solid var(-
 #graph { position: absolute; inset: 0; }
 #graph canvas { display: block; outline: none; }
 #gload { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); pointer-events: none; font-size: 13px; letter-spacing: 0.02em; }
-#legend, #gtools, #pick { z-index: 3; }
+#legend, #gtools { z-index: 3; }
+#pick { z-index: 5; } /* a direct child of #stage: above the graph canvas */
 #legend {
   position: absolute; left: 16px; bottom: 16px; display: flex; flex-direction: column; width: 216px; padding: 12px 10px 10px;
   font-size: 12.5px; color: var(--soft);
@@ -312,13 +339,14 @@ kbd { font: 500 11px/1 var(--mono); color: var(--muted); border: 1px solid var(-
 @media (max-width: 760px) {
   body { display: block; }
   #app { height: 100%; }
-  #side { position: fixed; top: 0; bottom: 0; left: 0; width: min(86vw, 330px); transform: translateX(-102%); transition: transform 0.3s var(--ease); box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4); }
-  body.drawer #side { transform: none; }
+  #side { position: fixed; top: 0; bottom: 0; left: 0; width: min(86vw, 330px); transform: translateX(-102%); transition: transform 0.3s var(--ease); }
+  body.drawer #side { transform: none; box-shadow: 8px 0 32px rgba(0, 0, 0, 0.4); } /* closed: no shadow bleeding in */
   #top { padding: 0 10px; gap: 8px; }
   #files { display: grid; }
-  #views { flex: 1; }
-  #views button { flex: 1; justify-content: center; padding: 0 6px; gap: 6px; }
+  #views { flex: 1; min-width: 0; }
+  #views button { flex: 1; min-width: 0; justify-content: center; padding: 0 6px; gap: 6px; } /* all five icon-only */
   #views .x { display: none; }
+  .src-head { flex-wrap: wrap; }
   .doc { padding: 22px 16px 72px; }
   #readview.exhibit .doc { padding: 12px 10px 0; }
   .titlerow { flex-direction: column; gap: 12px; }
@@ -334,4 +362,5 @@ kbd { font: 500 11px/1 var(--mono); color: var(--muted); border: 1px solid var(-
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+  .md .flash { outline: 2px solid var(--lime); outline-offset: 4px; } /* no glow: a still ring */
 }
