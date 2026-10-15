@@ -32,6 +32,12 @@ function zoomLerp(a, b, e, W, H) {
   return { k, x: lerp(ca[0], cb[0], u) - W / 2 / k, y: lerp(ca[1], cb[1], u) - H / 2 / k };
 }
 
+/**
+ * Mount the map canvas in `host` and return its API (show a level, drill, select, fit, zoom, state(), rects()).
+ * Each level is laid out for the canvas's shape: a long chain of layers wraps into bands, and small levels take
+ * whichever direction (left-right or top-down) fits the screen better.
+ * tokens(): theme colours; calm(): true for reduced motion; on: event handlers; now(): clock in ms (tests).
+ */
 export function createEngine({ host, tokens, calm = () => false, on = {}, now } = {}) {
   const clock = typeof now === 'function' ? now : () => performance.now();
   const emit = (name, ...a) => (typeof on[name] === 'function' ? on[name](...a) : undefined);
@@ -73,10 +79,16 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
   // ---------------------------------------------------------------- frames
   function layoutFor(level, pins) {
     const dir = W > 0 && H > W * 1.2 ? 'TB' : 'LR'; // portrait screens stack layers top-down
-    const key = `${level.rev || ''}|${level.lens || ''}|${level.at}|${filterKey}|${pins ? 'p' + Object.keys(pins).length : ''}|${dir}`;
+    // the screen's shape, so a long chain of layers can wrap into bands (bucketed: a small resize keeps the layout)
+    const aspect = W > 0 && H > 0 ? Math.round(4 * Math.max(40, W - MARGIN.l - MARGIN.r) / Math.max(40, H - MARGIN.t - MARGIN.b)) / 4 : 0;
+    const key = `${level.rev || ''}|${level.lens || ''}|${level.at}|${filterKey}|${pins ? 'p' + Object.keys(pins).length : ''}|${dir}|${aspect}`;
     const lay = !pins && layCache.get(key);
     if (lay && (lay.src === level || (level.rev && lay.n === (level.nodes || []).length && lay.e === (level.edges || []).length))) return lay.lay;
-    const out = layoutLevel(level, { measure, pins, filter, dir });
+    let out = layoutLevel(level, { measure, pins, filter, dir, aspect });
+    if (!pins && aspect && (level.nodes || []).length <= 60) { // small levels: the other direction when it fits clearly better
+      const alt = layoutLevel(level, { measure, filter, dir: dir === 'TB' ? 'LR' : 'TB', aspect });
+      if (fitRect(boundsOf(alt)).k > fitRect(boundsOf(out)).k * 1.08) out = alt;
+    }
     if (!pins) {
       layCache.set(key, { lay: out, src: level, n: (level.nodes || []).length, e: (level.edges || []).length });
       if (layCache.size > 48) layCache.delete(layCache.keys().next().value);
@@ -168,11 +180,12 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
   }
 
   // ---------------------------------------------------------------- camera
-  function bounds(f) {
-    let x0 = 0, y0 = 0, x1 = f.lay.w, y1 = f.lay.h;
-    for (const r of Object.values(f.lay.ghosts)) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
+  function boundsOf(lay) {
+    let x0 = 0, y0 = 0, x1 = lay.w, y1 = lay.h;
+    for (const r of Object.values(lay.ghosts)) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
+  const bounds = (f) => boundsOf(f.lay);
   function fitRect(b, margin = 0, cap = 1.6) {
     const aw = Math.max(40, W - MARGIN.l - MARGIN.r), ah = Math.max(40, H - MARGIN.t - MARGIN.b);
     const bw = b.w * (1 + 2 * margin), bh = b.h * (1 + 2 * margin);
@@ -958,7 +971,7 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
       return { at: cur ? cur.at : null, k: cur ? cur.cam.k : 1, fit: cur ? cur.fitK : 1,
         animating: !!(tr || camTw || inertia || moving || pulses.size || (raf && !ambientRaf)), frames: f, visible: visibleIds(), edges,
         cam: cur ? { ...cur.cam } : null, mode: tr ? tr.type : null, sel, autoDrill, overlay, lens: cur ? cur.level.lens || null : null,
-        layout: cur ? cur.lay.mode : null, ms: Math.round(renderMs * 100) / 100, peeks: [...peeks.entries()].filter(([, p]) => p.st === 'ok').map(([id]) => id) };
+        layout: cur ? cur.lay.mode : null, frame: cur ? { w: cur.lay.w, h: cur.lay.h, dir: cur.lay.dir || 'LR' } : null, ms: Math.round(renderMs * 100) / 100, peeks: [...peeks.entries()].filter(([, p]) => p.st === 'ok').map(([id]) => id) };
     },
     minimap(el) { if (el) attachMini(el); else detachMini(); },
     resize,

@@ -194,11 +194,20 @@ def test_palette_never_blue_or_purple(page, scheme):
 
 # ---------------------------------------------------------------- layout
 
+# a 7-block chain with labelled flows, a back edge and a long dep edge: one row of it is far wider than a screen
+CHAIN_JS = """{ v: 1, rev: 'chain', lens: 'systems', at: '.', ghosts: [],
+  nodes: ['host', 'firmware', 'gateway', 'backend', 'store', 'dashboard', 'protocol'].map((id) =>
+    ({ id, type: 'module', tier: 'system', name: id, drill: null, n: 0, badges: {} })),
+  edges: [['host', 'firmware', 'flashing'], ['firmware', 'gateway', 'Reading every 60 s'], ['gateway', 'backend', 'HTTPS'],
+    ['backend', 'store', 'rows'], ['store', 'dashboard', 'GET /v1/latest'], ['dashboard', 'protocol', ''], ['dashboard', 'backend', 'read API'],
+    ['firmware', 'protocol', '']].map(([s, t, l]) => ({ id: s + '>' + t, s, t, kinds: { flow: 1 }, n: 1, labels: l ? [l] : [] })) }"""
+
 LAYOUT_CHECK = """(arg) => {
-  const [name, dir] = Array.isArray(arg) ? arg : [arg, 'LR'];
-  const lv = H.levels[name];
+  const CHAIN = """ + CHAIN_JS + """;
+  const [name, dir, aspect = 0] = Array.isArray(arg) ? arg : [arg, 'LR'];
+  const lv = typeof name === 'string' ? (H.levels[name] || CHAIN) : name;
   const measure = (t, role) => String(t || '').length * (role === 'label' ? 6.2 : 8.2);
-  const a = H.layoutLevel(lv, { measure, dir }), b = H.layoutLevel(lv, { measure, dir });
+  const a = H.layoutLevel(lv, { measure, dir, aspect }), b = H.layoutLevel(lv, { measure, dir, aspect });
   const ids = Object.keys(a.nodes), bad = [];
   for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
     const p = a.nodes[ids[i]], q = a.nodes[ids[j]];
@@ -229,11 +238,12 @@ LAYOUT_CHECK = """(arg) => {
 }"""
 
 
+@pytest.mark.parametrize("aspect", [0, 1.5, 0.6])
 @pytest.mark.parametrize("dir_", ["LR", "TB"])
-@pytest.mark.parametrize("level", ["root", "child", "cyclic", "big", "code", "file", "kinds"])
-def test_layout_invariants(page, level, dir_):
+@pytest.mark.parametrize("level", ["root", "child", "cyclic", "big", "code", "file", "kinds", "chain"])
+def test_layout_invariants(page, level, dir_, aspect):
     p = page("root")
-    r = p.js(LAYOUT_CHECK, [level, dir_])
+    r = p.js(LAYOUT_CHECK, [level, dir_, aspect])
     assert r["dir"] == dir_
     assert r["same"], "layout is not deterministic"
     assert r["overlaps"] == [], r["overlaps"][:5]
@@ -245,6 +255,29 @@ def test_layout_invariants(page, level, dir_):
     if r["n"] <= 40:  # the 150-block stress level is too dense to route every ghost edge around
         assert r["ghostIntrude"] == [], r["ghostIntrude"][:5]  # ghost routes bend around every block
     assert r["n"] == r["want"] and r["ghosts"] == r["wantGhosts"] and r["order"] == r["n"]
+
+
+def test_long_chain_wraps_to_fit_the_screen(page):
+    """A chain of layers far wider than the screen folds into bands (LR: rows, TB: columns) that fit it clearly
+    better; edges between bands cross the gap between them with their label on the gap run."""
+    p = page("root")
+    r = p.js("""() => {
+      const CHAIN = """ + CHAIN_JS + """;
+      const measure = (t, role) => String(t || '').length * (role === 'label' ? 6.2 : 8.2);
+      const fit = (l, A) => Math.min(A / l.w, 1 / l.h);
+      const out = {};
+      for (const [dir, A] of [['LR', 1.5], ['TB', 1.5], ['LR', 0.6]]) {
+        const one = H.layoutLevel(CHAIN, { measure, dir }), w = H.layoutLevel(CHAIN, { measure, dir, aspect: A });
+        const ys = new Set(Object.values(w.nodes).map((n) => Math.round(dir === 'LR' ? n.y / 200 : n.x / 200)));
+        const lab = Object.values(w.edges).filter((e) => typeof e.lab === 'number').length;
+        out[dir + A] = { gain: fit(w, A) / fit(one, A), bands: ys.size, lab };
+      }
+      return out;
+    }""")
+    for key, v in r.items():
+        assert v["gain"] >= 1.12, (key, v)  # wrapped only when it fits at least 12 % better
+        assert v["bands"] >= 2, (key, v)
+        assert v["lab"] >= 5, (key, v)  # labelled edges keep a label slot
 
 
 def test_layout_modes(page):
@@ -432,8 +465,7 @@ def test_zoom_through_activate_and_up_with_cooldown(page):
     ups = p.events("up")
     assert ups and ups[0]["auto"] is True
     st = p.state()
-    lay = p.js("H.layoutLevel(H.levels.child)")
-    assert max(lay["w"], lay["h"]) * st["k"] < 0.55 * short + 1  # fired only below 55 %
+    assert max(st["frame"]["w"], st["frame"]["h"]) * st["k"] < 0.55 * short + 1  # fired only below 55 %
     p.idle()
     assert p.state()["at"] == "."
 

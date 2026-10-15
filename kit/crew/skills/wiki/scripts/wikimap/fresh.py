@@ -818,7 +818,8 @@ def _key_moddir(m, key: str) -> str | None:
 
 def advance(m, base: dict, *, files: set[str] | None) -> dict:
     """Apply the baseline transitions (spec §7.3 rule 3) for ``files`` (None = everything) and
-    return the new baseline. Call after computing findings."""
+    return the new baseline. Call after computing findings. Debt keys are module|name, so a debt
+    a same-named symbol in another file still produces is kept."""
     new = copy.deepcopy(base)
     bsyms: dict = new.setdefault("symbols", {})
     syms = symbols(m)
@@ -883,6 +884,11 @@ def advance(m, base: dict, *, files: set[str] | None) -> dict:
         idents = {_key_qual(k) for k in list(cur) + vanished}
         idents |= {_py_module_id(m, mod_name(m, (m.files.get(r) or {}).get("node") or r), r)
                    for r in files if r.endswith(".py")}
+        # a same-named symbol of the module in another file shares the debt key: check it there too
+        twins = {f for s in syms.values() if s["module"] in mods and _key_qual(s["key"]) in idents
+                 for f in s["files"]} - set(files)
+        if twins:
+            produced |= {f.key for f, _ in _raw(m, new, files=twins)}
 
         def droppable(d: str) -> bool:
             code, mod, ident = (d.split("|", 2) + ["", ""])[:3]

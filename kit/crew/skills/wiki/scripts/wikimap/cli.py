@@ -257,6 +257,13 @@ def _node_id(m, root: Path, target: str) -> str:
     raise CliError(f"{target} matches no node")
 
 
+def _module_icd(m, name) -> str | None:
+    """Repo-rel path of module ``name``'s ICD, or None."""
+    icd = ((m.modules or {}).get(name) or {}).get("icd") if isinstance(name, str) else None
+    icd = icd.get("item") if isinstance(icd, dict) else icd
+    return icd if isinstance(icd, str) and icd else None
+
+
 def _module_docs(m) -> dict[str, str]:
     """``{repo-rel doc path: module name}`` for overview/ICD/req/bind and diagram docs."""
     out: dict[str, str] = {}
@@ -361,6 +368,9 @@ def _hook_sync(root: Path, data: dict, argv: list[str]) -> int:
     finfo = m.files.get(rel) or {}
     if finfo and finfo.get("lang") not in (None, "", "text"):
         fs = fresh.compute(m, base, files={rel}, codes=set(fresh.SYMBOL_CODES) | {"XCALL"})
+        icd = _module_icd(m, finfo.get("mod"))
+        if icd:  # chain: a renamed or removed function leaves its module's ICD naming it
+            fs += fresh.compute(m, base, files={icd}, codes={"ICDSYM"})
         new = fresh.advance(m, base, files={rel})
         if new != base:
             fresh.save_baseline(root, new)

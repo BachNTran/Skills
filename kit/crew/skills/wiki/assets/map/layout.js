@@ -8,6 +8,8 @@ export const LABEL_MAX = 168;    // widest edge label line, world px at zoom 1
 const GAP_Y = 24;          // min vertical gap between blocks in one layer
 const GAP_DUMMY = 14;      // gap next to a long-edge waypoint (the route runs through it)
 const GHOST_GAP = 52;      // frame → ghost column
+const BAND_GAP = 72;
+const LANES = 6, RUNS = 8;   // distinct lanes beside columns / runs along a gap before edges share them       // estimate of the gap between wrapped bands (the real one grows with the edges in it)
 const TYPE_ORDER = ['root', 'module', 'group', 'own', 'actor', 'dir', 'bucket', 'file', 'symbol'];
 const SYS = new Set(['root', 'module', 'group', 'own']);
 const BANDED = new Set(['class', 'struct', 'interface']);
@@ -172,6 +174,34 @@ function spline(points, d0, d1) {
   return out.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
 }
 
+/** Orthogonal polyline → cubic chain with rounded corners. P: the polyline without repeats or collinear
+ *  points; seg[j] = index of the cubic for its straight run j (P[j] → P[j + 1]). */
+function ortho(points, r = 14) {
+  const P = [];
+  for (const q of points) {
+    const l = P[P.length - 1], k = P[P.length - 2];
+    if (l && Math.abs(q[0] - l[0]) < 0.5 && Math.abs(q[1] - l[1]) < 0.5) continue;
+    if (k && ((Math.abs(k[0] - l[0]) < 0.5 && Math.abs(l[0] - q[0]) < 0.5) || (Math.abs(k[1] - l[1]) < 0.5 && Math.abs(l[1] - q[1]) < 0.5))) P.pop(); // collinear
+    P.push(q);
+  }
+  const out = [P[0]], seg = [];
+  let cur = P[0];
+  const line = (q) => { out.push([cur[0] + (q[0] - cur[0]) / 3, cur[1] + (q[1] - cur[1]) / 3], [cur[0] + (2 * (q[0] - cur[0])) / 3, cur[1] + (2 * (q[1] - cur[1])) / 3], q); cur = q; };
+  for (let j = 1; j < P.length; j++) {
+    const u = P[j - 1], v = P[j], w = P[j + 1];
+    seg.push((out.length - 1) / 3);
+    if (!w) { line(v); break; }
+    const li = Math.hypot(v[0] - u[0], v[1] - u[1]), lo = Math.hypot(w[0] - v[0], w[1] - v[1]);
+    const rr = Math.min(r, li / 2, lo / 2);
+    const di = [(v[0] - u[0]) / li, (v[1] - u[1]) / li], dout = [(w[0] - v[0]) / lo, (w[1] - v[1]) / lo];
+    const p1 = [v[0] - di[0] * rr, v[1] - di[1] * rr], p2 = [v[0] + dout[0] * rr, v[1] + dout[1] * rr];
+    line(p1);
+    out.push([p1[0] + di[0] * rr * 0.55, p1[1] + di[1] * rr * 0.55], [p2[0] - dout[0] * rr * 0.55, p2[1] - dout[1] * rr * 0.55], p2);
+    cur = p2;
+  }
+  return { pts: out.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), seg, P };
+}
+
 const SIDE_DIR = { r: [1, 0], l: [-1, 0], t: [0, -1], b: [0, 1] };
 
 /** Spread the ends on one side of a rect, ordered by the far end's coordinate. */
@@ -198,17 +228,18 @@ function spreadPorts(list, rect) {
 /**
  * level: {nodes, ghosts, edges, rev, lens, at}. measure(text, role) → width in px (role name|label|small).
  * pins: {id: {x,y,w,h}} positions to keep (lens switch). filter: {kinds:Set, minConf}.
+ * aspect: the screen's width/height; a long chain of layers then wraps into bands when that fits it clearly better.
  * → {w, h, mode, nodes:{id:{x,y,w,h,L,o}}, ghosts:{id:{x,y,w,h,side}}, edges:{id:{pts, back}}, order:[ids]}
  */
-export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR' } = {}) {
-  if (dir !== 'TB') return layoutCore(level, measure, pins, filter, false);
+export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR', aspect = 0 } = {}) {
+  if (dir !== 'TB') return layoutCore(level, measure, pins, filter, false, aspect);
   // Top-to-bottom (portrait screens): lay out LR on transposed sizes, then transpose back. The frame keeps its
   // padding (title band on top): final = (core.y - S, core.x + S), core = (final.y - S, final.x + S).
   const S = PAD.top - PAD.x;
   const T = (r) => ({ ...r, x: r.y - S, y: r.x + S, w: r.h, h: r.w });
   let cpins = null;
   if (pins) { cpins = {}; for (const [id, r] of Object.entries(pins)) cpins[id] = { x: r.y - S, y: r.x + S, w: r.h, h: r.w }; }
-  const c = layoutCore(level, measure, cpins, filter, true);
+  const c = layoutCore(level, measure, cpins, filter, true, aspect > 0 ? 1 / aspect : 0);
   const nodes = {}, ghosts = {}, edges = {};
   for (const [id, r] of Object.entries(c.nodes)) nodes[id] = T(r);
   const POS = { in: 'top', out: 'bottom', both: 'left' };
@@ -218,7 +249,7 @@ export function layoutLevel(level, { measure = defMeasure, pins = null, filter =
   return { w: Math.max(240, c.h - S), h: Math.max(160, c.w + S), mode: c.mode, dir: 'TB', nodes, ghosts, edges, order };
 }
 
-function layoutCore(level, measure, pins, filter, tb) {
+function layoutCore(level, measure, pins, filter, tb, aspect) {
   const nodesIn = (level.nodes || []).slice().sort((a, b) => byStr(a.id, b.id));
   const ghostsIn = (level.ghosts || []).slice().sort((a, b) => byStr(a.id, b.id));
   const N = nodesIn.length, ix = new Map(nodesIn.map((n, i) => [n.id, i]));
@@ -239,6 +270,7 @@ function layoutCore(level, measure, pins, filter, tb) {
   const rect = new Array(N);
   let mode, layerOf = new Array(N).fill(0);
   const arcs = []; // back edges, routed as arcs above (or below) the drawing
+  let wrap = null;  // bands, when a long chain of layers wraps (see wrapBands)
   const chains = new Map(); // edge id → [vertex refs: {x,y} centre getters]
 
   const pinned = pins && nodesIn.some((n) => pins[n.id]);
@@ -297,6 +329,69 @@ function layoutCore(level, measure, pins, filter, tb) {
       rect[i] = { x: xs[c], y: ys[r] + (rh[r] - size[i].h) / 2, ...size[i] };
       layerOf[i] = maxW > 0 ? 1e6 + r : c;
     });
+  }
+
+  /**
+   * Fold layers 0..nL-1 into 2-4 bands of consecutive layers, stacked top to bottom, when that fits `aspect`
+   * at least 12% better than one row. Moves Y and fills shiftX in place; null when one row stays.
+   */
+  function wrapBands(V, Y, nL, colX, colW, layer, shiftX) {
+    const lo = new Array(nL).fill(Infinity), hi = new Array(nL).fill(-Infinity);
+    V.forEach((v, i) => { if (!v.skip) { lo[v.L] = Math.min(lo[v.L], Y[i]); hi[v.L] = Math.max(hi[v.L], Y[i] + v.h); } });
+    const cut = (R) => { const per = Math.ceil(nL / R), out = []; for (let f = 0; f < nL; f += per) out.push([f, Math.min(nL, f + per) - 1]); return out; };
+    const ext = ([f, l]) => { let a = Infinity, z = -Infinity; for (let L = f; L <= l; L++) { a = Math.min(a, lo[L]); z = Math.max(z, hi[L]); } return [a, z]; };
+    const gapEst = BAND_GAP + (tb ? LABEL_MAX : 0);
+    const fit = (bands) => {
+      let w = 0, h = gapEst * (bands.length - 1);
+      for (const b of bands) { const [a, z] = ext(b); w = Math.max(w, colX[b[1]] + colW[b[1]] - colX[b[0]]); h += z - a; }
+      return Math.min(aspect / (w + 2 * PAD.x), 1 / (h + PAD.top + PAD.bottom));
+    };
+    let bands = null, best = fit(cut(1)) * 1.12;
+    for (let R = 2; R <= Math.min(4, Math.ceil(nL / 2)); R++) { const c = cut(R), f = fit(c); if (f > best) { bands = c; best = f; } }
+    if (!bands) return null;
+    const nb = bands.length, bandL = new Array(nL);
+    bands.forEach(([f, l], b) => { for (let L = f; L <= l; L++) bandL[L] = b; });
+    const nodeBand = nodesIn.map((n, i) => (V[i].skip ? -1 : bandL[layer[i]]));
+    // edges between bands: forward chains and back edges; each takes a lane in the gap(s) it runs through
+    const cross = new Map(), back = new Set(), cnt = new Array(nb).fill(0), slot = new Map(), lab = new Array(nb).fill(false);
+    const arcRoom = new Array(nb).fill(0);
+    for (const e of inner) {
+      const si = ix.get(e.s), ti = ix.get(e.t), bs = nodeBand[si], bt = nodeBand[ti];
+      const isBack = arcs.some((a) => a.e === e);
+      if (bs === bt) {
+        if (isBack && bs > 0 && bs < nb - 1) { // a middle band's back edges arc below it, into the gap
+          const span = Math.abs(colX[layer[si]] - colX[layer[ti]]) + colW[layer[si]];
+          arcRoom[bs] = Math.max(arcRoom[bs], 42 + Math.min(80, 0.06 * span));
+        }
+        continue;
+      }
+      const g1 = bt > bs ? bs : bs - 1, g2 = bt > bs ? bt - 1 : bt;
+      cross.set(e.id, { bs, bt, g1, g2 });
+      if (isBack) back.add(e.id);
+      for (const g of new Set([g1, g2])) { slot.set(e.id + '|' + g, cnt[g]++); if (e.labels && e.labels.length) lab[g] = true; }
+    }
+    for (let i = arcs.length - 1; i >= 0; i--) if (cross.has(arcs[i].e.id)) arcs.splice(i, 1);
+    const top = [], bot = [], right = [], gapMid = [];
+    let y = 0;
+    bands.forEach(([f, l], b) => {
+      const [a, z] = ext([f, l]);
+      for (let L = f; L <= l; L++) shiftX[L] = -colX[f];
+      for (let i = 0; i < V.length; i++) if (!V[i].skip && V[i].L >= f && V[i].L <= l) Y[i] += y - a;
+      top[b] = y; bot[b] = y + z - a; right[b] = colX[l] + colW[l] - colX[f];
+      if (b < nb - 1) {
+        const runs = 24 + 10 * Math.max(0, Math.min(cnt[b], RUNS) - 1) + (lab[b] ? (tb ? LABEL_MAX : 30) : 0);
+        gapMid[b] = bot[b] + arcRoom[b] + 24 + runs / 2;
+        y = bot[b] + arcRoom[b] + 48 + runs;
+      }
+    });
+    const lane = (L, side, k) => { // x of the free lane beside column L (between columns, else outside the band)
+      const b = bandL[L], [f, l] = bands[b];
+      const k6 = k % LANES, mid = (gw) => clamp((k6 - (LANES - 1) / 2) * 6, 10 - gw / 2, gw / 2 - 10); // stays in the column gap
+      if (side > 0) return L === l ? right[b] + 20 + 8 * k6 : (colX[L] + colW[L] + colX[L + 1]) / 2 + shiftX[L] + mid(colX[L + 1] - colX[L] - colW[L]);
+      return L === f ? -20 - 8 * k6 : (colX[L - 1] + colW[L - 1] + colX[L]) / 2 + shiftX[L] + mid(colX[L] - colX[L - 1] - colW[L - 1]);
+    };
+    return { nb, bandL, nodeBand, cross, back, cnt, slot, gapMid, right, lane, layer, top, bot,
+      gutter: Math.max(...right) + 28, lanes: Math.min(LANES, Math.max(0, ...cnt)) };
   }
 
   /** Sugiyama LR over the core blocks. false (nothing placed) when the layering is too deep to read. */
@@ -393,7 +488,8 @@ function layoutCore(level, measure, pins, filter, tb) {
     }
     const colX = [0];
     for (let L = 1; L < nL; L++) colX[L] = colX[L - 1] + colW[L - 1] + clamp(gapW[L - 1] + 40, 88, LABEL_MAX + 72);
-    const cx = (v) => colX[V[v].L] + colW[V[v].L] / 2;
+    const shiftX = new Float64Array(nL);
+    const cx = (v) => colX[V[v].L] + shiftX[V[v].L] + colW[V[v].L] / 2;
     // y: priority placement, 4 sweeps
     const Y = new Float64Array(V.length);
     for (const l of layers) {
@@ -417,6 +513,7 @@ function layoutCore(level, measure, pins, filter, tb) {
         l.forEach((v, i) => { Y[v] = ys[i]; });
       }
     }
+    if (aspect > 0 && nL >= 3) wrap = wrapBands(V, Y, nL, colX, colW, layer, shiftX);
     V.forEach((v, i) => {
       if (v.skip) return;
       if (v.real >= 0) { const s2 = size[v.real]; rect[v.real] = { x: cx(i) - s2.w / 2, y: Y[i], w: s2.w, h: s2.h }; layerOf[v.real] = v.L; }
@@ -432,18 +529,20 @@ function layoutCore(level, measure, pins, filter, tb) {
   if (!N) { x0 = y0 = 0; x1 = 320; y1 = 160; }
   // back edges arc above, or below when blocks stack above both ends
   const stacked = (r, dir) => rect.reduce((c, q) => c + (q !== r && q.x < r.x + r.w && q.x + q.w > r.x && (dir < 0 ? q.y + q.h <= r.y : q.y >= r.y + r.h) ? 1 : 0), 0);
+  if (wrap && wrap.cross.size) { x0 -= 8 * wrap.lanes; x1 = Math.max(x1, wrap.gutter + 8 * wrap.lanes); }
   for (const a of arcs) {
     const rs = rect[a.s], rt = rect[a.t];
     const lo = Math.min(rs.x, rt.x), hi = Math.max(rs.x + rs.w, rt.x + rt.w);
-    a.side = stacked(rs, -1) + stacked(rt, -1) <= stacked(rs, 1) + stacked(rt, 1) ? 't' : 'b';
+    const near = wrap ? rect.filter((r, i) => wrap.nodeBand[i] === wrap.nodeBand[a.s]) : rect; // its own band
+    a.side = wrap ? (wrap.nodeBand[a.s] === 0 ? 't' : 'b') : stacked(rs, -1) + stacked(rt, -1) <= stacked(rs, 1) + stacked(rt, 1) ? 't' : 'b';
     const lift = 30 + Math.min(80, 0.06 * (hi - lo));
     if (a.side === 't') {
       let top = Math.min(rs.y, rt.y);
-      for (const r of rect) if (r.x < hi && r.x + r.w > lo) top = Math.min(top, r.y);
+      for (const r of near) if (r.x < hi && r.x + r.w > lo) top = Math.min(top, r.y);
       a.apex = top - lift; y0 = Math.min(y0, a.apex - 8);
     } else {
       let bot = Math.max(rs.y + rs.h, rt.y + rt.h);
-      for (const r of rect) if (r.x < hi && r.x + r.w > lo) bot = Math.max(bot, r.y + r.h);
+      for (const r of near) if (r.x < hi && r.x + r.w > lo) bot = Math.max(bot, r.y + r.h);
       a.apex = bot + lift; y1 = Math.max(y1, a.apex + 8);
     }
   }
@@ -495,12 +594,18 @@ function layoutCore(level, measure, pins, filter, tb) {
     const rs = si !== undefined ? rect[si] : grect[sg], rt = ti !== undefined ? rect[ti] : grect[tg];
     const ks = si !== undefined ? `n:${si}` : `g:${sg}`, kt = ti !== undefined ? `n:${ti}` : `g:${tg}`;
     const [sx, sy] = centre(rs), [tx, ty] = centre(rt);
-    const arc = arcs.find((a) => a.e === e);
+    const arc = arcs.find((a) => a.e === e), cr = wrap && wrap.cross.get(e.id);
+    if (cr && cr.direct === undefined) cr.direct = Math.abs(cr.bt - cr.bs) === 1 && facesGap(si, cr.bt > cr.bs) && facesGap(ti, cr.bt < cr.bs);
     let ss, ts;
     if (arc) { ss = arc.side; ts = arc.side; }
+    else if (cr && cr.direct) { ss = cr.bt > cr.bs ? 'b' : 't'; ts = cr.bt > cr.bs ? 't' : 'b'; }
     else if (sg !== undefined || tg !== undefined) {
       const g = grect[sg !== undefined ? sg : tg];
-      if (g.side === 'both') { ss = sg !== undefined ? 'b' : 't'; ts = tg !== undefined ? 'b' : 't'; }
+      if (g.side === 'both') {
+        ss = sg !== undefined ? 'b' : 't'; ts = tg !== undefined ? 'b' : 't';
+        const ni = si !== undefined ? si : ti; // wrapped: leave from the side unless the block looks straight up at the row
+        if (wrap && !(wrap.nodeBand[ni] === 0 && facesGap(ni, false))) { if (si !== undefined) ss = 'r'; else ts = 'r'; }
+      }
       else if (g.side === 'in') { ss = sg !== undefined ? 'r' : 'l'; ts = tg !== undefined ? 'r' : 'l'; }
       else { ss = sg !== undefined ? 'l' : 'r'; ts = tg !== undefined ? 'l' : 'r'; }
     } else if (mode === 'layered') { ss = 'r'; ts = 'l'; }
@@ -510,6 +615,7 @@ function layoutCore(level, measure, pins, filter, tb) {
       else { ss = ddy >= 0 ? 'b' : 't'; ts = ddy >= 0 ? 't' : 'b'; }
     }
     const ch = chains.get(e.id);
+    if (cr && cr.direct) { plans.push({ e, arc, ch, ps: req(ks, rs, ss, tx, e.id, 's'), pt: req(kt, rt, ts, sx, e.id, 't'), ss, ts }); continue; }
     const farS = ch && ch.length > 2 ? (ss === 'r' || ss === 'l' ? ch[1].Y : ch[1].X) : (ss === 'r' || ss === 'l' ? ty : tx);
     const farT = ch && ch.length > 2 ? (ts === 'r' || ts === 'l' ? ch[ch.length - 2].Y : ch[ch.length - 2].X) : (ts === 'r' || ts === 'l' ? sy : sx);
     plans.push({ e, arc, ch, ps: req(ks, rs, ss, farS, e.id, 's'), pt: req(kt, rt, ts, farT, e.id, 't'), ss, ts });
@@ -574,6 +680,60 @@ function layoutCore(level, measure, pins, filter, tb) {
     return null;
   }
 
+  /** True when nothing of its own band stands between block i and the gap below (down) or above it. */
+  function facesGap(i, down) {
+    const r = rect[i], b = wrap.nodeBand[i];
+    return !rect.some((q, j) => j !== i && wrap.nodeBand[j] === b && q.x < r.x + r.w - 4 && q.x + q.w > r.x + 4
+      && (down ? q.y >= r.y + r.h : q.y + q.h <= r.y));
+  }
+  /** Between bands: straight across the gap when both ends face it, else out of the source's lane, along the gap (and the right gutter past other bands), into the target's lane. */
+  function crossRoute(e, a, b) {
+    const { g1, g2 } = wrap.cross.get(e.id), si = ix.get(e.s), ti = ix.get(e.t);
+    const k1 = wrap.slot.get(e.id + '|' + g1), k2 = wrap.slot.get(e.id + '|' + g2);
+    const gy = (g, k) => wrap.gapMid[g] + ((k % RUNS) - (Math.min(wrap.cnt[g], RUNS) - 1) / 2) * 10 + dy;
+    // edges sharing a gap put their labels at different points along it: (k + 1) / (n + 1)
+    const stagger = (o, lab) => (lab >= 0 && wrap.cnt[g1] > 1 ? splitAt(o.pts, lab, (k1 + 1) / (wrap.cnt[g1] + 1)) : { pts: o.pts, lab });
+    if (wrap.cross.get(e.id).direct) {
+      const o = ortho([a, [a[0], gy(g1, k1)], [b[0], gy(g1, k1)], b]);
+      return stagger(o, o.P.length === 4 ? o.seg[1] : -1);
+    }
+    const xs = wrap.lane(wrap.layer[si], 1, k1) + dx, xt = wrap.lane(wrap.layer[ti], -1, k2) + dx;
+    const P = [a, [xs, a[1]], [xs, gy(g1, k1)]];
+    if (g1 !== g2) { const xr = wrap.gutter + 8 * (k1 % LANES) + dx; P.push([xr, gy(g1, k1)], [xr, gy(g2, k2)]); }
+    P.push([xt, gy(g2, k2)], [xt, b[1]], b);
+    const o = ortho(P);
+    let lab = -1, best = -1; // the label sits on the widest run along a gap (not the stubs at either end)
+    for (let j = 1; j + 2 < o.P.length; j++) {
+      const w = Math.abs(o.P[j + 1][0] - o.P[j][0]);
+      if (Math.abs(o.P[j + 1][1] - o.P[j][1]) < 0.5 && w > best) { best = w; lab = o.seg[j]; }
+    }
+    return stagger(o, lab);
+  }
+  /** Wrapped bands: a ghost edge that would pass behind a block leaves through the block's lane, runs along
+   *  its band's nearer edge and then the outer gutter to the ghost's column. null for a top-row ghost. */
+  function ghostRoute(e, a, b, ss, ts) {
+    const nodeIsS = ix.has(e.s), i = ix.get(nodeIsS ? e.s : e.t), side = nodeIsS ? ss : ts;
+    if (i === undefined || !'lr'.includes(side)) return null;
+    const pn = nodeIsS ? a : b, pg = nodeIsS ? b : a, r = rect[i], bd = wrap.nodeBand[i], out = side === 'r';
+    const row = (nodeIsS ? ts : ss) === 'b'; // a top-row ghost: up the gutter, then across above the frame
+    const xl = wrap.lane(wrap.layer[i], out ? 1 : -1, 0) + dx;
+    const t0 = wrap.top[bd] + dy, b0 = wrap.bot[bd] + dy, cy = r.y + r.h / 2;
+    const yb = row || cy - t0 <= b0 - cy ? t0 - 14 : b0 + 14;
+    const xg = (out ? wrap.gutter + 8 * wrap.lanes + 12 : -32 - 8 * wrap.lanes) + dx;
+    const P = row ? [pn, [xl, pn[1]], [xl, yb], [xg, yb], [xg, pg[1] + 16], [pg[0], pg[1] + 16], pg]
+      : [pn, [xl, pn[1]], [xl, yb], [xg, yb], [xg, pg[1]], pg];
+    return ortho(nodeIsS ? P : P.reverse()).pts;
+  }
+  /** Split straight cubic c of pts so a piece is centred at fraction f of it; lab names that piece. */
+  function splitAt(pts, c, f) {
+    const p = pts[3 * c], q = pts[3 * c + 3], at = (t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
+    const m = f <= 0.5 ? 2 * f : 2 * f - 1, piece = (t0, t1) => [at(t0 + (t1 - t0) / 3), at(t0 + (2 * (t1 - t0)) / 3), at(t1)];
+    if (m <= 0.02 || m >= 0.98) return { pts, lab: c };
+    const r = (z) => [Math.round(z[0] * 10) / 10, Math.round(z[1] * 10) / 10];
+    const out = pts.slice(0, 3 * c + 1).concat([...piece(0, m), ...piece(m, 1)].map(r), pts.slice(3 * c + 4));
+    return { pts: out, lab: f <= 0.5 ? c : c + 1 };
+  }
+
   const outEdges = {};
   for (const p of plans) {
     const a = p.ps.pt, b = p.pt.pt;
@@ -581,6 +741,9 @@ function layoutCore(level, measure, pins, filter, tb) {
     if (p.arc) {
       const Yc = (8 * p.arc.apex - a[1] - b[1]) / 6;
       pts = [a, [a[0], Yc], [b[0], Yc], b].map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+    } else if (wrap && wrap.cross.has(p.e.id)) {
+      outEdges[p.e.id] = { ...crossRoute(p.e, a, b), back: wrap.back.has(p.e.id) };
+      continue;
     } else if (p.ch && p.ch.length >= 2 && p.ss === 'r' && p.ts === 'l' && b[0] > a[0]) {
       // layered: run level through each column (the block's own row, or the waypoint's free slot) and
       // bend only in the empty gaps between columns, so a route never passes behind a block
@@ -604,10 +767,14 @@ function layoutCore(level, measure, pins, filter, tb) {
     } else {
       const mid = p.ch && p.ch.length > 2 ? p.ch.slice(1, -1).map((v) => [v.X, v.Y]) : [];
       const d0 = SIDE_DIR[p.ss], d1 = SIDE_DIR[p.ts].map((d) => -d);
-      if (!mid.length && 'lr'.includes(p.ss) && 'lr'.includes(p.ts)) pts = bumpDetour(a, b, p.e);
+      if (!mid.length && 'lr'.includes(p.ss) && 'lr'.includes(p.ts)) {
+        pts = bumpDetour(a, b, p.e);
+        if (wrap && crossing(pts, new Set([ix.get(p.e.s), ix.get(p.e.t)]))) pts = ghostRoute(p.e, a, b, p.ss, p.ts) || pts;
+      }
       else {
         pts = spline([a, ...mid, b], d0, d1);
         if (!mid.length && rect.length > 1) pts = detour(pts, a, b, d0, d1, p.e); // a ghost edge can cross the only other block
+        if (wrap && !mid.length && crossing(pts, new Set([ix.get(p.e.s), ix.get(p.e.t)]))) pts = ghostRoute(p.e, a, b, p.ss, p.ts) || pts;
       }
     }
     outEdges[p.e.id] = { pts, back: !!p.arc };

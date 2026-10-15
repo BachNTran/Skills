@@ -257,6 +257,24 @@ def test_example_warm_post_tool_use_budget(request):
     assert "DOCREVIEW" in context(H("pending", start(ex))[1], "SessionStart")
 
 
+def test_code_edit_chains_to_its_module_icd(request):
+    """Renaming a function in code flags the module ICD that still names it, on that same edit."""
+    wm = pytest.importorskip("wikimap")
+    if not hasattr(wm, "open_map"):
+        pytest.skip("wikimap.open_map not landed")
+    try:
+        ex = Path(request.getfixturevalue("example"))
+    except pytest.FixtureLookupError:
+        pytest.skip("conftest example fixture not landed")
+    assert run(cli, ["map", str(ex)])[0] == 0
+    mod = ex / "firmware/sensing/battery_monitor"
+    hdr, src = mod / "include/battery_monitor/battery_monitor.hpp", mod / "src/battery_monitor.cpp"
+    for p in (hdr, src):
+        p.write_text(p.read_text().replace("sample()", "sample_now()"))
+    lines = context(H("sync", post(ex, src))[1], "PostToolUse").splitlines()
+    assert any(ln.startswith("ICDSYM      battery_monitor  sample  docs/battery_monitor.icd.md:") for ln in lines), lines
+
+
 def test_gate_does_not_import_the_graph(tmp_path):
     """O3: the opt-in gate must stay under 50 ms, so `import wikimap.cli` must not pull in the
     graph, resolver or language adapters before the gate has passed."""

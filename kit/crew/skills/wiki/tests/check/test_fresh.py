@@ -471,6 +471,21 @@ def test_advance_transitions(fm):
     assert base is not new and helper in base["symbols"]        # input untouched
 
 
+def test_advance_keeps_debt_a_same_named_symbol_elsewhere_still_owes(fm):
+    """Debt keys are module|name: documenting `twin` in one file must not clear the other file's debt."""
+    other = fm.file("lib/src/other.py", "lib")
+    a, b = fm.sym(PY, "twin", line=70), fm.sym(other, "twin", line=3)
+    base = fresh.create_baseline(fm)
+    assert "UNDOC|lib|twin" in base["debt"]
+    fm.edit(a, doc=mkdoc("Twin in calc."))
+    new = fresh.advance(fm, base, files={PY})
+    assert "UNDOC|lib|twin" in new["debt"]                      # other.py's twin is still undocumented
+    assert fresh.compute(fm, new, codes={"UNDOC"}) == []
+    fm.edit(b, doc=mkdoc("Twin in other."))
+    new = fresh.advance(fm, new, files={other})
+    assert "UNDOC|lib|twin" not in new["debt"]                  # both documented: paid off
+
+
 def test_advance_moves_renamed_entry_and_debt(fm):
     base = fresh.create_baseline(fm)
     assert "UNDOC|lib|helper" in base["debt"]
