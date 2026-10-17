@@ -98,9 +98,20 @@ kbd { font: 500 11px/1 var(--mono); color: var(--muted); border: 1px solid var(-
 /* ---------- top bar and view switch ---------- */
 #app { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 #top { display: flex; align-items: center; gap: 12px; height: var(--top); padding: 0 20px; border-bottom: 1px solid var(--faint); background: var(--bg); }
-#files { display: none; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: var(--soft); }
-#files:hover { background: var(--s2); }
-#files svg { width: 18px; height: 18px; stroke-width: 1.6; }
+#files, #side-toggle { display: none; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: var(--soft); }
+#files:hover, #side-toggle:hover { background: var(--s2); }
+#files svg, #side-toggle svg { width: 18px; height: 18px; stroke-width: 1.6; }
+
+/* wide screens: the tree folds away and the view takes the full width (the canvases re-measure on their own) */
+@media (min-width: 761px) {
+  body { transition: grid-template-columns 0.24s var(--ease); }
+  #side { overflow: hidden; transition: visibility 0s; }
+  #side > * { min-width: calc(var(--sw) - 1px); } /* clipped while it folds, never re-wrapped */
+  #side-toggle { display: grid; margin-left: -10px; }
+  body.side-closed { grid-template-columns: 0 minmax(0, 1fr); }
+  body.side-closed #side { visibility: hidden; border-right: 0; transition: visibility 0s 0.24s; } /* out of the tab order */
+  body.side-closed #side-toggle { color: var(--muted); }
+}
 #views { display: flex; padding: 3px; gap: 2px; background: var(--s1); border: 1px solid var(--line); border-radius: 11px; }
 #views button { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; transition: background 0.15s, color 0.15s; }
 #views button:hover { color: var(--ink); }

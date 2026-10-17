@@ -339,3 +339,29 @@ def test_hostile_docstring_is_text(poly, new_page):
     page.wait_for_function("() => document.querySelector('#map-panel').textContent.includes('alert(1)')", timeout=5000)
     assert panel.locator("script").count() == 0
     assert page.locator("img[onerror]").count() == 0 and panel.locator("img").count() == 0
+
+
+# 13
+def test_side_panel_folds_and_canvas_takes_the_width(example, new_page):
+    page = new_page()
+    go(page, example, view="systems")
+    width = "() => document.querySelector('#map canvas').width / devicePixelRatio"
+    side = page.locator("#side-toggle")
+    assert side.is_visible() and side.get_attribute("aria-expanded") == "true"
+    before = page.evaluate(width)
+    side.click()
+    page.wait_for_function(f"() => ({width})() >= {before} + 250", timeout=3000)  # the canvas re-measured
+    assert side.get_attribute("aria-expanded") == "false" and not page.is_visible("#side")
+    assert page.evaluate("() => localStorage.getItem('wiki.side')") == "closed" and "side" not in page.url
+    page.reload()
+    page.wait_for_function("() => document.body.classList.contains('side-closed')", timeout=5000)
+    page.locator("#map-q").focus()
+    page.keyboard.press("[")  # typing: ignored
+    assert page.evaluate("() => document.body.classList.contains('side-closed')")
+    page.locator("#map").focus()
+    page.keyboard.press("[")
+    page.wait_for_function("() => !document.body.classList.contains('side-closed')", timeout=1000)
+    assert side.get_attribute("aria-expanded") == "true" and page.is_visible("#side")
+    page.set_viewport_size({"width": 390, "height": 800})
+    page.wait_for_timeout(250)
+    assert not side.is_visible() and page.is_visible("#files")  # phones keep the drawer

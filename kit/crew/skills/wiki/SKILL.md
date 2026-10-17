@@ -33,9 +33,11 @@ docs match the code. Below, `W` = `python3 <this skill's dir>/scripts/wiki.py`.
 - Page images (`![](x.svg)`, also png/gif/webp) render inline, resolved relative to the page and served
   only from inside the repo root.
 - Layout: left side panel = collapsible file tree (folders by name, files by doc title without extension;
-  kind icons, indent guides, counts, modules tagged, filter box on top, arrow keys and Enter); centre = the
-  open item at full height: title, kind / version / status chips, Feedback and Raw, and on wide screens an
-  on-page outline. No file path is shown anywhere in the UI (only the URL hash carries it).
+  kind icons, indent guides, counts, modules tagged, filter box on top, arrow keys and Enter). On wide screens
+  the panel button at the left of the top bar, or `[`, folds the tree away so the view and the canvases get the
+  full width (remembered per browser, not in the hash). Centre = the open item at full height: title, kind /
+  version / status chips, Feedback and Raw, and on wide screens an on-page outline. No file path is shown
+  anywhere in the UI (only the URL hash carries it).
 - Views, top bar: **Read** · **Graph 2D** · **Graph 3D** · **Systems** · **Code**. The graph shows every item as a
   glowing node (shape = kind, colour = group, size = links), gradient arcs for references and faint spokes for
   structure, a soft aura per group, depth fog in 3D, and title labels that appear as you zoom. Hovering a node
@@ -60,8 +62,9 @@ docs match the code. Below, `W` = `python3 <this skill's dir>/scripts/wiki.py`.
   and callees, findings, and buttons: Drill · Trace ↑ · Trace ↓ · Open · Show in Code/Systems. Source opens
   in Read with the lines highlighted and a Back to map button.
 - Keys on the map: Tab through blocks · arrows move the selection, Shift+arrows pan · `+`/`-` zoom · `0` fit ·
-  Enter drill or open · Esc close panel, then up · Backspace up · `/` search · `o` open doc · `s` source ·
-  `t` trace · `l` switch lens · `h` doc-health overlay. Filters and Compare with code sit in the toolbar.
+  Enter drill or open · Esc (or the panel's ×) close panel, then up · Backspace up · `/` search · `o` open doc ·
+  `s` source · `t` trace · `l` switch lens · `h` doc-health overlay · `[` hide or show the file tree. Filters
+  and Compare with code sit in the toolbar.
 - Hash examples: `#view=systems&at=firmware%2Fsensing&sel=firmware%2Fsensing%2Fbattery_monitor` ·
   `#view=code&at=firmware%2Fcomms` · `#view=read&src=firmware%2Fcomms%2Fsrc%2Fuplink.cpp&line=8-22` ·
   `#view=read&item=firmware%2Fsensing%2Fbattery_monitor%2Fdocs%2Fbattery_monitor.req.md&find=REQ-BATMON-002`.
@@ -148,6 +151,20 @@ sequences, layouts. Use a Mermaid block in the page, or a self-contained `.svg` 
 - Text is real `<text>`, not paths. Set `viewBox`, a `<title>`, and draw on the dark UI: bg `#0b0f0d`,
   ink `#f0f5f1`, muted `#8da295`, accents mint `#5eead4` and lime `#a3e635`. Never blue or purple.
 - Pair colour with shape or label so meaning survives without it.
+- Developer's standing rules for every diagram (Bach, 2026-10-16), the system map and pipeline diagrams above all:
+  - **Enough detail to act on:** each box names the real part (module, service, container, device) and what it
+    does; each edge says what flows and how (`what · how · rate`). Someone who lost everything can rebuild from
+    the diagram plus the runbook.
+  - **Nested levels, one canvas:** systems → modules → services/devices, as containers inside containers, so
+    each level reads on its own and the whole is one infinite canvas (the wiki Systems view, plus the draw.io
+    map). Keep a level to about 12 boxes; push detail one level down rather than crowding.
+  - **Modern and readable:** consistent box sizes and spacing on a grid, rounded corners, generous padding, one
+    font size per level, labels never covered by lines.
+  - **Straight lines, no overlap:** orthogonal or straight edges only, routed around boxes, no crossings a
+    re-layout avoids, no two edges on top of each other, no edge through a box or a label.
+  - **Animation is a big plus** where data really moves (live streams, pipelines, tunnels): draw.io
+    `flowAnimation=1` on live edges, CSS keyframes in SVGs, with the reduced-motion guard.
+  - Export and look at the rendered result (PNG) for overlaps before calling it done.
 
 ## Rules
 - Act on the feedback first, then resolve it. Never resolve an item you didn't handle. Leave it open

@@ -77,6 +77,20 @@ function visibleRows(root, open, terms) {
 if (typeof document === 'undefined') { globalThis.__tree = { buildTree, visibleRows, nameOf }; } else main();
 
 async function main() {
+// wide screens: the tree folds away and the view takes the full width; remembered per browser, never in the hash
+const WIDE = matchMedia('(min-width: 761px)');
+const sideClosed = () => document.body.classList.contains('side-closed');
+function setSide(on, remember = true) {
+  if (!on && $('#side').contains(document.activeElement)) $('#side-toggle').focus({ preventScroll: true }); // never strand focus in it
+  if (!remember) document.body.style.transition = 'none'; // the remembered state lands without a fold
+  document.body.classList.toggle('side-closed', !on);
+  if (!remember) { void document.body.offsetWidth; document.body.style.transition = ''; }
+  $('#side-toggle').setAttribute('aria-expanded', String(on)); $('#side-toggle').title = `${on ? 'Hide' : 'Show'} files  [`;
+  if (remember) try { localStorage.setItem('wiki.side', on ? 'open' : 'closed'); } catch { /* private mode: not remembered */ }
+}
+setSide((() => { try { return localStorage.getItem('wiki.side') !== 'closed'; } catch { return true; } })(), false);
+$('#side-toggle').onclick = () => setSide(sideClosed());
+
 const wiki = await getJSON('/api/wiki');
 for (const it of wiki.items) it.name = nameOf(it);
 const feedback = await getJSON('/api/feedback');
@@ -590,9 +604,10 @@ addEventListener('keydown', (e) => {
   if (e.key === '/' && !typing && isMap(view)) { e.preventDefault(); $('#map-q').focus(); return; }
   if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
     e.preventDefault();
-    if (matchMedia('(max-width: 760px)').matches) setDrawer(true); else filter.focus();
+    if (!WIDE.matches) setDrawer(true); else { if (sideClosed()) setSide(true); filter.focus(); }
     return;
   }
+  if (e.key === '[' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey && WIDE.matches) { e.preventDefault(); setSide(sideClosed()); return; }
   if (e.key !== 'Escape') return;
   if (document.body.classList.contains('drawer')) setDrawer(false);
   else if (!form.hidden) closeComposer();
