@@ -42,8 +42,9 @@ docs match the code. Below, `W` = `python3 <this skill's dir>/scripts/wiki.py`.
   (or a legend group) lights its neighbourhood and dims the rest; the tooltip gives title, kind, group and a
   one-line excerpt. 3D spins slowly until first touch; Fit and Rotate buttons sit bottom right. Clicking a node
   opens it in Read with the tree synced; the open item is ringed in the graph, and picking a file in the tree
-  while a graph shows rings it there. The view is remembered (localStorage) and lives in the URL hash with the
-  item: `#view=graph3d&item=<path>`, so a refresh keeps both. Under 760px the tree becomes a drawer and the
+  while a graph shows rings it there. A bare URL lands on **Systems** (Read when the
+  wiki has no map); the view lives in the URL hash with the item: `#view=graph3d&item=<path>`, so a refresh
+  keeps both, and a link with only `item` or `src` opens Read. Under 760px the tree becomes a drawer and the
   view buttons go icon-only. Dark theme by default, light follows the system; reduced-motion is respected.
 
 ## Systems and Code maps

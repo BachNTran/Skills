@@ -625,7 +625,8 @@ body.replaceChildren(append(el('div', { className: 'welcome' }), [
 renderTree();
 {
   const h = hashState();
-  let v = h.view || (VIEWS.includes(saved()) ? saved() : 'read');
+  // a bare URL lands on the Systems map; a link to a page or source opens Read; no map → the remembered view
+  let v = h.view || (h.item || h.src ? 'read' : wiki.map ? 'systems' : VIEWS.includes(saved()) ? saved() : 'read');
   if (isMap(v) && !wiki.map) v = 'read'; // a saved or linked map view, on a wiki without maps
   mapAt = h.at || '.'; mapSel = h.sel || '';
   if (v === 'read' && h.src) {
