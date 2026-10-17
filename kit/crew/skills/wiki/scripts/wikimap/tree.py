@@ -78,7 +78,7 @@ def load_config(root: Path) -> dict:
         raise ConfigError(f"{'/'.join(CONFIG_JSON)}: invalid JSON: {e}") from e
     if not isinstance(data, dict):
         raise ConfigError(f"{'/'.join(CONFIG_JSON)}: must be a JSON object")
-    types = {"ignore": list, "undoc": str, "violations": list, "max_hook_lines": int, "macros": dict}
+    types = {"ignore": list, "undoc": str, "violations": list, "max_hook_lines": int, "macros": dict, "systems": dict}
     for key, val in data.items():
         want = types.get(key)
         if want is not None and (not isinstance(val, want) or isinstance(val, bool)):
@@ -582,10 +582,106 @@ class _Builder:
             self.plain_overview(top, node)
             self.fill(top, ".", None, "group")
         self.finish()
-        return {"root": str(self.root), "modgate": self.modgate, "project": self.project, "nodes": self.nodes,
-                "children": self.children, "files": self.files, "modules": self.modules,
-                "diagrams": self.diagrams, "config": self.config, "read": sorted(self.read),
-                "vendor": self.vendor, "ignore": self.ignore, "criticality": _s(self.mg.get("criticality"))}
+        out = {"root": str(self.root), "modgate": self.modgate, "project": self.project, "nodes": self.nodes,
+               "children": self.children, "files": self.files, "modules": self.modules,
+               "diagrams": self.diagrams, "config": self.config, "read": sorted(self.read),
+               "vendor": self.vendor, "ignore": self.ignore, "criticality": _s(self.mg.get("criticality"))}
+        areas = (self.config.get("systems") or {}).get("areas") if isinstance(self.config.get("systems"), dict) else None
+        if areas:
+            self.areas(out, areas)
+        return out
+
+    # --- logical areas (Systems lens only; the physical tree stays as scanned) ---
+    def areas(self, out: dict, specs: list) -> None:
+        """Add `systems.areas` from the config: area group nodes under the root and `sparent` overrides.
+
+        Members keep their physical parent in `nodes`; `out["sparent"]` {member id: area id} re-parents them
+        in the Systems lens only. An area's diagram is the first flowchart under its `doc#Heading`.
+        """
+        sparent: dict[str, str] = {}
+        info: dict[str, dict] = {}
+        for spec in specs if isinstance(specs, list) else []:
+            if not isinstance(spec, dict):
+                continue
+            aid = str(spec.get("id") or "").strip()
+            if not MODULE_SHAPE.match(aid) or "/" in aid or aid in self.nodes:
+                continue
+            title = str(spec.get("title") or aid)
+            doc, _, anchor = str(spec.get("doc") or "").partition("#")
+            doc = doc.strip().strip("/")
+            text = ""
+            if doc and not self.skipped_path((self.root / doc).resolve()):
+                text = _read(self.root / doc)
+                if text:
+                    self.read.add(doc)
+            summary, flow, line = _area_section(text, anchor.strip())
+            self.add({"id": aid, "parent": ".", "type": "group", "tier": "sys", "kind": "area", "name": title,
+                      "title": title, "summary": summary, "path": ".", "mod": None,
+                      "item": doc if text else None, "docs": [doc] if text else []})
+            self.children["."].remove(aid)  # the physical root never lists an area
+            self.nodes[aid]["children_n"] = 0
+            if flow is not None:
+                self.diagrams[aid] = {"doc": doc, "flow": flow, "line": line}
+            members, missing = [], []
+            for raw in spec.get("members") or []:
+                ref = str(raw).strip().strip("/")
+                nid = ref if ref in self.nodes and self.nodes[ref]["tier"] == "sys" else \
+                    resolve_ref(out, ".", ref, ref)
+                if nid is None or nid == "." or nid in sparent or self.nodes[nid].get("kind") == "area":
+                    missing.append(ref)
+                    continue
+                sparent[nid] = aid
+                members.append(nid)
+            info[aid] = {"title": title, "doc": doc or None, "anchor": anchor.strip() or None,
+                         "members": members, "missing": missing}
+        out["read"] = sorted(self.read)
+        cfg = Path(self.root).joinpath(*CONFIG_JSON)
+        if info and cfg.is_file():
+            out["read"] = sorted(set(out["read"]) | {"/".join(CONFIG_JSON)})
+        out["sparent"] = sparent
+        out["areas"] = info
+
+
+def _area_section(text: str, anchor: str) -> tuple[str, dict | None, int]:
+    """(first paragraph, parsed flowchart | None, fence line) under heading `anchor` (whole doc when empty)."""
+    if not text:
+        return "", None, 0
+    _, start = mdparse.frontmatter(text)
+    lines = text.splitlines()
+    lo, hi, level = start, len(lines) + 1, 0
+    if anchor:
+        hs = mdparse.headings(text)
+        hit = next((h for h in hs if h[1].lower() == anchor.lower()), None)
+        if hit is None:
+            return "", None, 0
+        level, lo = hit[0], hit[2] + 1
+        hi = next((h[2] for h in hs if h[2] > hit[2] and h[0] <= level), hi)
+    para: list[str] = []
+    fenced = False
+    for raw in lines[max(lo, 1) - 1:hi - 1]:
+        t = raw.strip()
+        if t.startswith(("```", "~~~")):
+            fenced = not fenced
+            if para:
+                break
+            continue
+        if fenced or t.startswith("#") or t.startswith(">") or t.startswith("|"):
+            if para:
+                break
+            continue
+        if not t:
+            if para:
+                break
+            continue
+        para.append(t)
+    summary = " ".join(para)
+    if not anchor:
+        flow, line = mdparse.pick_diagram(text)
+        return summary, flow, line
+    for b in mdparse.mermaid_blocks(text):
+        if lo <= b["line"] < hi and mdparse._FLOW_HDR.match(mdparse._first_stmt(b["src"])):
+            return summary, mdparse.parse_flowchart(b["src"], b["line"]), b["line"]
+    return summary, None, 0
 
 
 def _s(v) -> str | None:

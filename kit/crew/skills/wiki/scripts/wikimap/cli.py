@@ -553,7 +553,7 @@ def cmd_show(a) -> int:
     if m.level(lens, at) is None and not a.lens and lens == "systems" and m.level("code", at) is not None:
         lens = "code"
     if m.level(lens, at) is None:
-        leaf, at = nid, node.get("parent")
+        leaf, at = nid, m.parent_of(nid, lens) if hasattr(m, "parent_of") else node.get("parent")
         if at is None:
             raise CliError(f"{a.target} has no level to show")
         if m.level(lens, at) is None:

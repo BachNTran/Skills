@@ -196,14 +196,26 @@ def test_ambiguous_capped_at_five(tmp_path):
 
 def test_unique_and_method_name_rules(tmp_path):
     root = write(tmp_path / "r", {
-        "a/pyproject.toml": "", "b/pyproject.toml": "",
+        "a/pyproject.toml": "",
         "a/lib.py": "class Pump:\n    def prime(self):\n        return 1\n\ndef solo():\n    return 2\n",
-        "b/use.py": "def go(x):\n    x.prime()\n    return solo()\n",
+        "a/sub/use.py": "def go(x):\n    x.prime()\n    return solo()\n",
     })
     m = build_map(root, tmp_path / "d", exact=True)
-    out = edges_from(m, "b/use.py#go")
-    assert out["a/lib.py#solo"]["why"] == "unique" and out["a/lib.py#solo"]["conf"] == 0.5
+    out = edges_from(m, "a/sub/use.py#go")  # same unit: a bare name may still resolve
+    assert out["a/lib.py#solo"]["why"] == "module" and out["a/lib.py#solo"]["conf"] == 0.6
     assert out["a/lib.py#Pump.prime"]["why"] == "method-name" and out["a/lib.py#Pump.prime"]["conf"] == 0.4
+
+
+def test_name_only_call_across_units_needs_an_import(tmp_path):
+    """`x.add()` on a set must not become a call into another unit's `Buffer.add` (no import links them)."""
+    lib = "class Buffer:\n    def add(self, v):\n        return v\n\ndef solo():\n    return 2\n"
+    root = write(tmp_path / "r", {
+        "a/pyproject.toml": "", "b/pyproject.toml": "", "a/lib.py": lib,
+        "b/use.py": "def go(x):\n    x.add(1)\n    return solo()\n",
+    })
+    m = build_map(root, tmp_path / "d", exact=True)
+    assert edges_from(m, "b/use.py#go") == {}  # was method-name (Buffer.add) and unique (solo)
+    assert m.stats["unresolved"] >= 2
 
 
 def test_broken_file_halves_call_confidence(tmp_path):

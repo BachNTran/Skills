@@ -675,7 +675,7 @@ def _diagram_findings(m, files: set[str] | None) -> list[Finding]:
                 refs.add(sg["ref"])
         lines = [n.get("line") for n in dnodes.values() if n.get("line")]
         line = d.get("line") or (min(lines) if lines else 1)
-        for ch in m.children.get(cid, []):
+        for ch in (m.kids(cid, "systems") if hasattr(m, "kids") else m.children.get(cid, [])):
             cn = m.nodes.get(ch) or {}
             if cn.get("tier") != "sys" or cn.get("type") not in ("module", "group"):
                 continue

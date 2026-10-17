@@ -117,6 +117,8 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
     if (!d) return null;
     return lens === 'code' ? 'code' : d === 'systems' ? 'systems' : 'code';
   }
+  // the parent in a lens: areas (config `systems.areas`) re-parent their members in the Systems lens only
+  const parentOf = (id, l = lens) => { const n = byIdx.get(id); return n && l === 'systems' && 'sp' in n ? n.sp : n?.parent; };
   function chainOf(id) { // root-first ids down to id, from the index (symbols hang off their file)
     if (id == null) return [];
     let base = id;
@@ -125,7 +127,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
     const out = [];
     for (let cur = base, guard = 0; cur != null && byIdx.has(cur) && guard < 256; guard++) {
       out.unshift(cur);
-      cur = byIdx.get(cur).parent;
+      cur = parentOf(cur);
     }
     if (out.length && out[0] !== '.' && byIdx.has('.')) out.unshift('.');
     if (base !== id) out.push(id);
@@ -182,6 +184,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
       drill(id, !!o.auto);
     },
     up: () => run(upOne),
+    area: (id) => run(async () => { sel = ''; closePanel(); await show('systems', id, { mode: 'drill', via: null }); }),
     ghost: (g) => onGhost(g),
     hover: (hit, pos) => onHover(hit, pos),
     peek: (id) => {
@@ -308,7 +311,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
       return show('systems', at, { mode: 'up', via });
     }
     const crumbs = level.crumbs || [];
-    const parent = crumbs.length > 1 ? crumbs.at(-2).id : byIdx.get(at)?.parent ?? '.';
+    const parent = crumbs.length > 1 ? crumbs.at(-2).id : parentOf(at) ?? '.';
     let l = lens;
     if (l === 'code' && switchAt && parent !== switchAt && isAncestor(parent, switchAt)) l = 'systems';
     return show(l, parent, { mode: 'up', via: at });
@@ -354,7 +357,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
     try { d = await getJSON(`/api/map/node?id=${encodeURIComponent(id)}`); } catch { say(`Cannot find ${id}`); return; }
     const node = d.node || {};
     const chain = (d.chain || []).map((c) => c.id).filter((c) => c !== id);
-    const parent = node.parent ?? chain.at(-1) ?? '.';
+    const parent = chain.at(-1) ?? node.parent ?? '.'; // the server's chain is the Systems one (areas included)
     if (chain.at(-1) !== parent) chain.push(parent);
     const l = node.tier === 'code' || byIdx.get(parent)?.tier === 'code' ? 'code' : lens;
     flyTo(parent, { lensWanted: l, select: id, pulse: true, chain });
@@ -362,7 +365,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
   function onGhost(g) {
     if (!g) return;
     const peer = g.peer || String(g.id).replace(/^ghost:/, '');
-    const levelAt = g.at ?? byIdx.get(peer)?.parent ?? '.';
+    const levelAt = g.at ?? parentOf(peer) ?? '.';
     flyTo(levelAt, { lensWanted: lens, select: peer, pulse: true });
   }
   function toggleLens() {
@@ -661,7 +664,8 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
     if (!e) return null;
     const kinds = Object.entries(e.kinds || {}).map(([k, c]) => (c > 1 ? `${k} ×${c}` : k)).join(' · ');
     const out = [el('span', { class: 'tk', text: kinds || 'edge' }), el('b', { text: `${nameOf(e.s)} → ${nameOf(e.t)}` })];
-    if (e.labels?.length) out.push(el('p', { text: e.labels.join(' · ') }));
+    if (e.labels?.length === 1) out.push(el('p', { text: e.labels[0] }));
+    else if (e.labels?.length) out.push(el('ul', { class: 'tip-labels' }, e.labels.map((l) => el('li', { text: l }))));
     const meta = [STATE_LABEL[e.state] || e.state, typeof e.conf === 'number' ? `conf ${shortConf(e.conf)}` : '', e.n > 1 ? `${e.n} links` : ''].filter(Boolean).join(' · ');
     if (meta) out.push(el('p', { class: e.state === 'undeclared' ? 'bad' : 'dim', text: meta }));
     const samples = (e.samples || []).slice(0, 5);
@@ -752,7 +756,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
     closeResults();
     q.blur();
     mapEl.focus({ preventScroll: true });
-    const levelAt = r.at ?? byIdx.get(r.id)?.parent ?? '.';
+    const levelAt = r.at ?? parentOf(r.id, r.lens === 'code' ? 'code' : 'systems') ?? '.';
     flyTo(levelAt, { lensWanted: r.lens === 'code' ? 'code' : 'systems', select: r.id, pulse: true });
   }
   q.addEventListener('input', () => search());
@@ -979,8 +983,8 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
         let ok;
         if (!level) ok = await show(l, a, { mode: 'jump' });
         else if (a === at) { switchAt = null; switchVia = null; ok = await show(l, a, { mode: 'lens' }); }
-        else if (byIdx.get(a)?.parent === at) ok = await show(l, a, { mode: 'drill', via: a });
-        else if (byIdx.get(at)?.parent === a) ok = await show(l, a, { mode: 'up', via: at });
+        else if (parentOf(a, l) === at) ok = await show(l, a, { mode: 'drill', via: a });
+        else if (parentOf(at, l) === a) ok = await show(l, a, { mode: 'up', via: at });
         else ok = await show(l, a, { mode: 'jump' });
         if (!ok && !level) await show('systems', '.', { mode: 'jump' });
         if (s && level) {

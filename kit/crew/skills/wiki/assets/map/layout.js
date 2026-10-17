@@ -35,6 +35,7 @@ function badgeW(n) {
 
 /** Block size in world units (§8.3). */
 export function nodeSize(n, measure = defMeasure) {
+  if (n.box) return { w: n.box.w, h: n.box.h }; // an open area box: sized by its own layout
   const m = measure(n.name || n.id, 'name');
   const cont = n.drill ? clamp(Math.sqrt(n.n || 0) / 2, 1, 2) : 1;
   if (n.type === 'actor') return { w: clamp(48 + m, 120, 260), h: 52 };
@@ -232,7 +233,8 @@ function spreadPorts(list, rect) {
  * → {w, h, mode, nodes:{id:{x,y,w,h,L,o}}, ghosts:{id:{x,y,w,h,side}}, edges:{id:{pts, back}}, order:[ids]}
  */
 export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR', aspect = 0 } = {}) {
-  if (dir !== 'TB') return layoutCore(level, measure, pins, filter, false, aspect);
+  if (Array.isArray(level.areas) && level.areas.length) return unblock(layoutAreas(level, measure, filter, aspect), level, filter);
+  if (dir !== 'TB') return pins ? layoutCore(level, measure, pins, filter, false, aspect) : unblock(layoutCore(level, measure, pins, filter, false, aspect), level, filter);
   // Top-to-bottom (portrait screens): lay out LR on transposed sizes, then transpose back. The frame keeps its
   // padding (title band on top): final = (core.y - S, core.x + S), core = (final.y - S, final.x + S).
   const S = PAD.top - PAD.x;
@@ -785,4 +787,202 @@ function layoutCore(level, measure, pins, filter, tb, aspect) {
   ghostsIn.forEach((g, i) => { ghosts[g.id] = grect[i] || { x: W + GHOST_GAP, y: 0, w: 110, h: 30, side: 'out' }; });
   const order = nodesIn.map((n) => n.id).sort((a, b) => nodes[a].L - nodes[b].L || nodes[a].y - nodes[b].y || nodes[a].x - nodes[b].x || byStr(a, b));
   return { w: Math.round(W), h: Math.round(H), mode, dir: 'LR', nodes, ghosts, edges: outEdges, order };
+}
+
+// ---------------------------------------------------------------- open area boxes
+
+const AREA_TITLE = 56;   // the boundary's title band (inside PAD.top), kept free of edges
+const CELL = 8;          // router grid, world units
+const CLEAR = 6;         // routes keep this far from blocks
+
+/**
+ * A level whose nodes carry `area` (the root of the Systems lens): each area is an open box laid out like a
+ * level of its own (members flow left to right inside), the boxes and the loose nodes are laid out as one
+ * level around them, and every edge joins the real blocks. Edges inside one box keep that box's routes; an
+ * edge between boxes is routed on a grid around every block, title band and foreign box.
+ * → layoutLevel's result plus areas:{id:{x,y,w,h,title,name}}.
+ */
+function layoutAreas(level, measure, filter, aspect) {
+  const nodesIn = (level.nodes || []).slice().sort((a, b) => byStr(a.id, b.id));
+  const areasIn = level.areas.slice().sort((a, b) => byStr(a.id, b.id));
+  const areaOf = new Map(), byId = new Map(nodesIn.map((n) => [n.id, n]));
+  for (const a of areasIn) for (const m of a.members || []) if (byId.has(m)) areaOf.set(m, a.id);
+  const edges = (level.edges || []).filter((e) => Object.keys(visibleKinds(e, filter)).length && e.s !== e.t)
+    .sort((a, b) => byStr(a.id, b.id));
+  // 1. each area on its own
+  const sub = new Map();
+  for (const a of areasIn) {
+    const mem = nodesIn.filter((n) => areaOf.get(n.id) === a.id);
+    if (!mem.length) continue;
+    const ids = new Set(mem.map((n) => n.id));
+    sub.set(a.id, layoutCore({ nodes: mem, ghosts: [], edges: edges.filter((e) => ids.has(e.s) && ids.has(e.t)) },
+      measure, null, filter, false, aspect ? Math.max(1, aspect * 0.75) : 0));
+  }
+  // 2. boxes and loose nodes as one level (edges lifted to the boxes, for ordering and gaps only)
+  const box = (id) => (areaOf.has(id) ? 'area:' + areaOf.get(id) : id);
+  const top = nodesIn.filter((n) => !areaOf.has(n.id));
+  for (const a of areasIn) { const l = sub.get(a.id); if (l) top.push({ id: 'area:' + a.id, type: 'group', name: a.title, box: { w: l.w, h: l.h } }); }
+  const lifted = new Map();
+  for (const e of edges) {
+    const s = box(e.s), t = box(e.t);
+    if (s === t || !(byId.has(e.s) || e.s.startsWith('ghost:')) || !(byId.has(e.t) || e.t.startsWith('ghost:'))) continue;
+    const id = `${s}>${t}`, g = lifted.get(id);
+    if (g) { g.n += e.n || 1; continue; }
+    lifted.set(id, { id, s, t, kinds: { flow: 1 }, n: e.n || 1, labels: e.labels && e.labels.length ? [e.labels[0]] : [] });
+  }
+  const sup = layoutCore({ nodes: top, ghosts: level.ghosts || [], edges: [...lifted.values()] },
+    measure, null, { kinds: new Set(['flow']), minConf: 0 }, false, aspect);
+  // 3. compose
+  const nodes = {}, areas = {}, outEdges = {};
+  for (const a of areasIn) {
+    const l = sub.get(a.id), r = sup.nodes['area:' + a.id];
+    if (!l || !r) continue;
+    areas[a.id] = { x: r.x, y: r.y, w: r.w, h: r.h, title: a.title, name: a.name || a.title, L: r.L };
+    for (const [id, q] of Object.entries(l.nodes)) nodes[id] = { ...q, x: q.x + r.x, y: q.y + r.y, L: r.L };
+    for (const [id, q] of Object.entries(l.edges)) outEdges[id] = { ...q, pts: q.pts.map(([x, y]) => [x + r.x, y + r.y]) };
+  }
+  for (const n of nodesIn) if (!areaOf.has(n.id) && sup.nodes[n.id]) nodes[n.id] = sup.nodes[n.id];
+  const ghosts = sup.ghosts;
+  for (const e of edges) { // loose ↔ loose (and ghosts): the outer layout's own route
+    if (outEdges[e.id] || areaOf.has(e.s) || areaOf.has(e.t)) continue;
+    if (sup.edges[e.id]) outEdges[e.id] = sup.edges[e.id];
+  }
+  const W = sup.w, H = sup.h;
+  const router = gridRouter(W, H, nodes, areas, ghosts);
+  const rest = edges.filter((e) => !outEdges[e.id] && (nodes[e.s] || ghosts[e.s]) && (nodes[e.t] || ghosts[e.t]));
+  // ports: each block's ends spread along the side they use, ordered by where the far end is
+  const ends = new Map();
+  const plan = rest.map((e) => {
+    const a = nodes[e.s] || ghosts[e.s], b = nodes[e.t] || ghosts[e.t];
+    const [ss, ts] = sidesOf(a, b);
+    const ps = { side: ss, far: 'lr'.includes(ss) ? b.y + b.h / 2 : b.x + b.w / 2, key: e.id };
+    const pt = { side: ts, far: 'lr'.includes(ts) ? a.y + a.h / 2 : a.x + a.w / 2, key: e.id };
+    (ends.get(e.s) || ends.set(e.s, []).get(e.s)).push(ps);
+    (ends.get(e.t) || ends.set(e.t, []).get(e.t)).push(pt);
+    return { e, ps, pt };
+  });
+  for (const [id, list] of [...ends.entries()].sort((x, y) => byStr(x[0], y[0]))) spreadPorts(list, nodes[id] || ghosts[id]);
+  for (const p of plan) {
+    const r = router(p.e, p.ps, p.pt, areaOf.get(p.e.s), areaOf.get(p.e.t));
+    if (r) outEdges[p.e.id] = r;
+  }
+  const order = Object.keys(nodes).sort((a, b) => nodes[a].L - nodes[b].L || nodes[a].y - nodes[b].y || nodes[a].x - nodes[b].x || byStr(a, b));
+  return { w: Math.round(W), h: Math.round(H), mode: 'areas', dir: 'LR', nodes, ghosts, edges: outEdges, order, areas, areaOf };
+}
+
+/** True when a route passes through a block other than its own two ends. */
+function throughBlock(pts, rects, skip) {
+  for (let i = 0; i + 3 < pts.length; i += 3) {
+    for (let s = 1; s < 12; s++) {
+      const t = s / 12, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+      const x = a * pts[i][0] + b * pts[i + 1][0] + c * pts[i + 2][0] + d * pts[i + 3][0];
+      const y = a * pts[i][1] + b * pts[i + 1][1] + c * pts[i + 2][1] + d * pts[i + 3][1];
+      for (const [id, q] of rects) if (!skip.has(id) && x > q.x + 2 && x < q.x + q.w - 2 && y > q.y + 2 && y < q.y + q.h - 2) return true;
+    }
+  }
+  return false;
+}
+
+/** Last pass, any LR layout: an edge that runs behind a block is re-routed on the grid from its own ports. */
+function unblock(lay, level, filter) {
+  const rects = Object.entries(lay.nodes).sort((a, b) => byStr(a[0], b[0]));
+  const ids = Object.keys(lay.edges).sort(byStr).filter((id) => {
+    const e = (level.edges || []).find((x) => x.id === id);
+    return e && throughBlock(lay.edges[id].pts, rects, new Set([e.s, e.t]));
+  });
+  if (!ids.length) { delete lay.areaOf; return lay; }
+  const router = gridRouter(lay.w, lay.h, lay.nodes, lay.areas || {}, lay.ghosts);
+  const sideAt = (r, p) => {
+    const d = [[Math.abs(p[0] - (r.x + r.w)), 'r'], [Math.abs(p[0] - r.x), 'l'], [Math.abs(p[1] - r.y), 't'], [Math.abs(p[1] - (r.y + r.h)), 'b']];
+    return d.sort((a, b) => a[0] - b[0])[0][1];
+  };
+  const areaOf = lay.areaOf || new Map();
+  for (const id of ids) {
+    const e = level.edges.find((x) => x.id === id), r = lay.edges[id], P = r.pts;
+    const a = lay.nodes[e.s] || lay.ghosts[e.s], b = lay.nodes[e.t] || lay.ghosts[e.t];
+    if (!a || !b) continue;
+    const ps = { pt: P[0], side: sideAt(a, P[0]) }, pt = { pt: P[P.length - 1], side: sideAt(b, P[P.length - 1]) };
+    const got = router(e, ps, pt, areaOf.get(e.s), areaOf.get(e.t));
+    if (got && !throughBlock(got.pts, rects, new Set([e.s, e.t]))) lay.edges[id] = got;
+  }
+  delete lay.areaOf;
+  return lay;
+}
+
+/** Which sides an edge leaves a and enters b by: facing sides, left/right unless the two overlap in x. */
+function sidesOf(a, b) {
+  if (b.x >= a.x + a.w) return ['r', 'l'];
+  if (b.x + b.w <= a.x) return ['l', 'r'];
+  return b.y >= a.y + a.h / 2 ? ['b', 't'] : ['t', 'b'];
+}
+
+/** A* on a CELL grid with a bend penalty; a route never passes a block, a title band or another area's box. */
+function gridRouter(W, H, nodes, areas, ghosts) {
+  const gw = Math.ceil(W / CELL) + 1, gh = Math.ceil(H / CELL) + 1, N = gw * gh;
+  const hard = new Uint8Array(N), zone = new Int16Array(N).fill(-1), used = new Uint8Array(N);
+  const aIds = Object.keys(areas).sort(byStr);
+  const mark = (r, pad, fn) => { // the cells whose centre lies inside r grown by pad
+    const x0 = Math.max(0, Math.ceil((r.x - pad) / CELL)), x1 = Math.min(gw - 1, Math.floor((r.x + r.w + pad) / CELL));
+    const y0 = Math.max(0, Math.ceil((r.y - pad) / CELL)), y1 = Math.min(gh - 1, Math.floor((r.y + r.h + pad) / CELL));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) fn(y * gw + x);
+  };
+  aIds.forEach((id, i) => { const a = areas[id]; mark(a, CLEAR, (c) => { zone[c] = i; }); mark({ x: a.x, y: a.y, w: a.w, h: AREA_TITLE }, 0, (c) => { hard[c] = 1; }); });
+  for (const r of Object.values(nodes)) mark(r, CLEAR, (c) => { hard[c] = 1; });
+  for (const r of Object.values(ghosts || {})) mark(r, CLEAR, (c) => { hard[c] = 1; });
+  const cellOf = (x, y) => Math.max(0, Math.min(gh - 1, Math.round(y / CELL))) * gw + Math.max(0, Math.min(gw - 1, Math.round(x / CELL)));
+  const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1], SD = { r: 0, b: 1, l: 2, t: 3 };
+  return (e, ps, pt, sa, ta) => {
+    const okZone = new Set([sa, ta].filter(Boolean).map((id) => aIds.indexOf(id)));
+    const free = (c) => !hard[c] && (zone[c] < 0 || okZone.has(zone[c]));
+    const out = (p, side, d) => [p.pt[0] + DX[SD[side]] * d, p.pt[1] + DY[SD[side]] * d];
+    const s0 = out(ps, ps.side, CLEAR + CELL), t0 = out(pt, pt.side, CLEAR + CELL);
+    const S = cellOf(s0[0], s0[1]), T = cellOf(t0[0], t0[1]);
+    const tx = T % gw, ty = (T / gw) | 0;
+    // state = cell * 4 + heading; cost: 1 per cell, 4 per bend, 2 per cell another route already uses
+    const g = new Float64Array(N * 4).fill(Infinity), from = new Int32Array(N * 4).fill(-1);
+    const heap = [];
+    const push = (st, f) => { heap.push([f, st]); let i = heap.length - 1; while (i > 0) { const j = (i - 1) >> 1; if (heap[j][0] < heap[i][0] || (heap[j][0] === heap[i][0] && heap[j][1] <= heap[i][1])) break; [heap[i], heap[j]] = [heap[j], heap[i]]; i = j; } };
+    const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; for (const c of [l, r]) if (c < heap.length && (heap[c][0] < heap[m][0] || (heap[c][0] === heap[m][0] && heap[c][1] < heap[m][1]))) m = c; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
+    const h = (c) => Math.abs((c % gw) - tx) + Math.abs(((c / gw) | 0) - ty);
+    const sd = SD[ps.side];
+    g[S * 4 + sd] = 0; push(S * 4 + sd, h(S));
+    let end = -1, guard = 0;
+    while (heap.length && guard++ < N * 8) {
+      const [, st] = pop(), c = st >> 2, d = st & 3;
+      if (c === T) { end = st; break; }
+      const cx = c % gw, cy = (c / gw) | 0;
+      for (let nd = 0; nd < 4; nd++) {
+        if (nd === ((d + 2) & 3)) continue;
+        const nx = cx + DX[nd], ny = cy + DY[nd];
+        if (nx < 0 || ny < 0 || nx >= gw || ny >= gh) continue;
+        const nc = ny * gw + nx;
+        if (nc !== T && !free(nc)) continue;
+        const ns = nc * 4 + nd, cost = g[st] + 1 + (nd !== d ? 4 : 0) + (used[nc] ? 2 : 0);
+        if (cost < g[ns]) { g[ns] = cost; from[ns] = st; push(ns, cost + h(nc)); }
+      }
+    }
+    if (end < 0) return null;
+    const cells = [];
+    for (let st = end; st >= 0; st = from[st]) cells.push(st >> 2);
+    cells.reverse();
+    for (const c of cells) used[c] = 1;
+    const at = (c) => [(c % gw) * CELL, ((c / gw) | 0) * CELL];
+    const P = [ps.pt];
+    const horiz = (side) => side === 'l' || side === 'r';
+    let pts = cells.map(at);
+    // the first and last runs sit on the ports' own lines (the grid is coarser than the port spread)
+    const snap = (list, port, side) => {
+      const k = horiz(side) ? 1 : 0;
+      let i = 0;
+      while (i < list.length && Math.abs(list[i][k] - list[0][k]) < 0.5) i++;
+      for (let j = 0; j < i; j++) list[j] = k ? [list[j][0], port[1]] : [port[0], list[j][1]];
+    };
+    snap(pts, ps.pt, ps.side);
+    pts.reverse(); snap(pts, pt.pt, pt.side); pts.reverse();
+    P.push(...pts, pt.pt);
+    const o = ortho(P);
+    let lab = 0, best = -1;
+    for (let j = 0; j + 1 < o.P.length; j++) { const L = Math.hypot(o.P[j + 1][0] - o.P[j][0], o.P[j + 1][1] - o.P[j][1]); if (L > best) { best = L; lab = o.seg[j]; } }
+    return { pts: o.pts, back: false, lab };
+  };
 }

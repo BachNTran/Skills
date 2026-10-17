@@ -25,7 +25,9 @@ edges:
   dashboard → backend   flow  "GET /v1/latest"  declared
   dashboard → protocol  dep  declared
   deploy → backend      flow dep×2  "deploys"  declared
-  firmware → backend    flow×2  "weather.v1.Reading · protocol: weather.v1.Reading over HTTPS"  declared
+  firmware → backend    flow×2  "weather.v1.Reading" +1 more  declared
+      · weather.v1.Reading
+      · protocol: weather.v1.Reading over HTTPS
   firmware → protocol   dep contract×3  declared
   host → firmware       flow  "flashing / debug"  declared
 ghosts:

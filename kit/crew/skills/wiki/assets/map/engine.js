@@ -8,6 +8,9 @@ import { PALETTE, drawNode, drawGhost, drawEdge, edgeLook, drawLabel, labelRect,
 
 const DRILL_MS = 420, SWAP = 0.6, GLIDE_MS = 300, JUMP_MS = 320, CALM_MS = 120, HOVER_MS = 150, COOL_MS = 500;
 const PEEK_MIN = 240, PEEK_MAX = 6, HIT_PX = 6, MARGIN = { l: 40, r: 40, t: 64, b: 40 };
+// one shape for every level on every screen: layers flow left to right and wrap at a fixed aspect, so a
+// level lays out the same each time it is opened (spatial memory holds); the camera fits it to the screen
+const LAYOUT_DIR = 'LR', LAYOUT_ASPECT = 1.75;
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -78,17 +81,11 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
 
   // ---------------------------------------------------------------- frames
   function layoutFor(level, pins) {
-    const dir = W > 0 && H > W * 1.2 ? 'TB' : 'LR'; // portrait screens stack layers top-down
-    // the screen's shape, so a long chain of layers can wrap into bands (bucketed: a small resize keeps the layout)
-    const aspect = W > 0 && H > 0 ? Math.round(4 * Math.max(40, W - MARGIN.l - MARGIN.r) / Math.max(40, H - MARGIN.t - MARGIN.b)) / 4 : 0;
+    const dir = LAYOUT_DIR, aspect = LAYOUT_ASPECT;
     const key = `${level.rev || ''}|${level.lens || ''}|${level.at}|${filterKey}|${pins ? 'p' + Object.keys(pins).length : ''}|${dir}|${aspect}`;
     const lay = !pins && layCache.get(key);
     if (lay && (lay.src === level || (level.rev && lay.n === (level.nodes || []).length && lay.e === (level.edges || []).length))) return lay.lay;
-    let out = layoutLevel(level, { measure, pins, filter, dir, aspect });
-    if (!pins && aspect && (level.nodes || []).length <= 60) { // small levels: the other direction when it fits clearly better
-      const alt = layoutLevel(level, { measure, filter, dir: dir === 'TB' ? 'LR' : 'TB', aspect });
-      if (fitRect(boundsOf(alt)).k > fitRect(boundsOf(out)).k * 1.08) out = alt;
-    }
+    const out = layoutLevel(level, { measure, pins, filter, dir, aspect });
     if (!pins) {
       layCache.set(key, { lay: out, src: level, n: (level.nodes || []).length, e: (level.edges || []).length });
       if (layCache.size > 48) layCache.delete(layCache.keys().next().value);
@@ -499,6 +496,45 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
     ctx.globalAlpha = 1;
   }
 
+  /** Open area boxes (the root of the Systems lens): a soft boundary, its title on top. Screen-space titles are
+   *  kept in f.areaTitles so edge labels avoid them and a click on one opens the area. */
+  function areaBoxes(f, Xf, alpha) {
+    f.areaTitles = [];
+    const areas = f.lay.areas;
+    if (!areas || alpha <= 0.01) return;
+    const k = Xf.k;
+    for (const id of Object.keys(areas).sort()) {
+      const b = areas[id];
+      const x = b.x * k + Xf.tx, y = b.y * k + Xf.ty, w = b.w * k, h = b.h * k;
+      if (w < 6 || x > W || y > H || x + w < 0 || y + h < 0) continue;
+      const tint = tintOf(id), rad = clamp(18 * k, 5, 26);
+      ctx.globalAlpha = alpha;
+      ctx.beginPath(); roundRect(ctx, x, y, w, h, rad);
+      ctx.fillStyle = rgba(tint, light ? 0.06 : 0.05); ctx.fill();
+      ctx.setLineDash([Math.max(3, 7 * k), Math.max(2, 5 * k)]);
+      ctx.strokeStyle = rgba(tint, light ? 0.55 : 0.45); ctx.lineWidth = Math.max(1, 1.5 * Math.min(1, k * 1.4)); ctx.stroke();
+      ctx.setLineDash([]);
+      const fs = clamp(18 * k, 10, 28), pad = clamp(22 * k, 8, 30);
+      if (w > 90 && fs >= 10) {
+        const nf = fontOf(700, fs, fam);
+        ctx.font = nf; ctx.fillStyle = rgba(tint, 0.95); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        const s = ellipsize(ctx, b.title || id, nf, w - pad * 2);
+        const ty = y + pad + fs * 0.5;
+        ctx.fillText(s, Math.round(x + pad), Math.round(ty));
+        const sub = fontOf(600, fs * 0.5, fam);
+        ctx.font = sub; ctx.fillStyle = rgba(T.muted, 0.9);
+        const tw = textW(ctx, s, nf);
+        if (tw + fs * 3.6 < w - pad * 2) ctx.fillText('A R E A', Math.round(x + pad + tw + fs * 0.6), Math.round(ty + fs * 0.05));
+        f.areaTitles.push({ id, x: x + pad - 4, y: y + pad - 4, w: tw + fs * 4, h: fs + 8 });
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  function areaAt(sx, sy) {
+    for (const t of cur?.areaTitles || []) if (sx >= t.x && sx <= t.x + t.w && sy >= t.y && sy <= t.y + t.h) return t.id;
+    return null;
+  }
+
   function lodOf(sw) { return sw < 10 ? 0 : sw < 60 ? 1 : sw < 140 ? 2 : sw < 260 ? 3 : 4; }
   function peekAlpha(r) {
     if (!r) return 0;
@@ -524,6 +560,7 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
     if (alpha <= 0.003) return;
     const k = Xf.k, main = f === cur && !o.child;
     if (!o.peek) frameBox(f, Xf, (o.box ?? 1) * alpha, (o.box ?? 1));
+    if (!o.peek) areaBoxes(f, Xf, alpha * sib);
     const calmNow = isCalm();
     // ---- edges (world transform, batched by style)
     const glide = tr && tr.type === 'glide' && f === tr.neu ? tr : null;
@@ -622,6 +659,7 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
     const blocks = [];
     for (const id of f.draw) { const r = f.lay.nodes[id]; blocks.push({ x: r.x * k + Xf.tx, y: r.y * k + Xf.ty, w: r.w * k, h: r.h * k }); }
     if (f.title) blocks.push(f.title);
+    for (const t of f.areaTitles || []) blocks.push(t);
     const hit = (r) => placed.some((p) => r.x < p.x + p.w + 4 && r.x + r.w + 4 > p.x && r.y < p.y + p.h + 3 && r.y + r.h + 3 > p.y)
       || blocks.some((p) => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y);
     for (const v of cand) {
@@ -633,7 +671,9 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
       const segPx = seg.len * k;
       if (v.look.label && v.e.labels && v.e.labels.length && segPx > 64) {
         // one line when it fits, else wrapped to two lines (the layout reserves LABEL_MAX per column gap)
-        const lr = labelRect(ctx, v.e.labels.join(' · '), fam, fs, Math.min(LABEL_MAX * (fs / 11), segPx - 16 - fs * 1.3));
+        // several labels lifted onto one edge: the first one plus a count; the tooltip lists them all
+        const txt = v.e.labels.length > 1 ? `${v.e.labels[0]}  +${v.e.labels.length - 1} more` : v.e.labels[0];
+        const lr = labelRect(ctx, txt, fam, fs, Math.min(LABEL_MAX * (fs / 11), segPx - 16 - fs * 1.3));
         const r = { x: mx - lr.w / 2, y: my - lr.h / 2, w: lr.w, h: lr.h };
         if (lr.lines.length && lr.lines[0] && segPx > lr.w + 16 && !hit(r)) {
           placed.push(drawLabel(ctx, lr, mx, my, v.look, T, fam, fs, ea, isLit, dpr));
@@ -822,6 +862,7 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
   function click(x, y) {
     const h = hitAt(x, y);
     if (h && h.type === 'ghost') { const g = cur.ghosts.get(h.id); if (g) emit('ghost', g); return; }
+    if (!h || h.type === 'edge') { const a = areaAt(x, y); if (a) { emit('area', a); return; } } // an area's title opens it
     const id = h && h.type === 'node' ? h.id : null;
     sel = id; invalidate();
     emit('select', id);

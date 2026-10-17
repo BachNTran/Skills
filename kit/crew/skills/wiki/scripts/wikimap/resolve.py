@@ -16,6 +16,7 @@ CLASS_KINDS = frozenset({"class", "struct", "interface"})
 CALL_KINDS = frozenset({"function", "ctor", "class", "struct", "macro"})
 METHOD_KINDS = frozenset({"method", "ctor", "function"})
 MAX_AMBIG = 5
+NAME_ONLY = frozenset({"unique", "method-name", "ambiguous"})  # rules that match a bare name, nothing else
 JS_PROBES = ("", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.js")
 SELF_RECV = ("self", "this", "cls")
 _PYPATH = re.compile(r"^\s*pythonpath\s*=\s*(\[[^\]]*\]|\"[^\"]*\"|'[^']*')", re.M)
@@ -574,7 +575,24 @@ class Resolver:
                     return nid
         return spans[0][2]
 
+    def _imported_mods(self) -> dict[str, set]:
+        """{file: modules it imports or includes}, from the import edges already resolved."""
+        out: dict[str, set] = {}
+        for (s, t, k) in self.edges:
+            if k != "import":
+                continue
+            tf = t.split("#", 1)[0]
+            out.setdefault(s.split("#", 1)[0], set()).add(self._mod(tf) or (self.nodes.get(t) or {}).get("mod"))
+        return out
+
+    def _linked(self, rel: str, tid: str, imported: dict[str, set]) -> bool:
+        """A name-only call target is kept inside the caller's module, or in a module the file imports."""
+        tmod = self._mod(tid.split("#", 1)[0]) or (self.nodes.get(tid) or {}).get("mod")
+        smod = self._mod(rel)
+        return tmod == smod or tmod in imported.get(rel, ())
+
     def run_calls(self) -> None:
+        imported = self._imported_mods()
         for rel in sorted(self.files):
             f = self.files[rel]
             rec = f.get("rec")
@@ -583,7 +601,8 @@ class Resolver:
             mult = 0.5 if (rec.get("ok") is False or rec.get("conf") == "low") else 1.0
             for c in rec.get("calls") or []:
                 src = self.from_id(rel, c.get("from"), c.get("line"))
-                hits = self.resolve_call(rel, c, src)
+                hits = [h for h in self.resolve_call(rel, c, src)
+                        if h[2] not in NAME_ONLY or self._linked(rel, h[0], imported)]
                 if not hits:
                     self.unresolved += 1
                     continue

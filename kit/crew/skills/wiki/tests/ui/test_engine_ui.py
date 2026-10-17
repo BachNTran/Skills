@@ -605,3 +605,86 @@ def test_frame_budget_150_nodes_dpr2(page):
       for (let i = 0; i < 30; i++) { H.engine.panBy(i % 2 ? 5 : -5, 0); await H.frame(); ms.push(H.state().ms); }
       ms.sort((a, b) => a - b); return ms[15]; }""")
     assert ms <= 8, ms  # JS time of one render (150 nodes, 600 edges, dpr 2)
+
+
+# ---------------------------------------------------------------- open area boxes (node, no browser)
+
+AREAS_LEVEL = {"v": 1, "rev": "areas", "lens": "systems", "at": ".", "ghosts": [], "areas": [
+    {"id": "trading", "title": "Trading system", "members": ["data", "features", "strategy", "risk", "broker"]},
+    {"id": "research", "title": "Research", "members": ["study", "course"]},
+    {"id": "deploy", "title": "Dev and deploy", "members": ["container", "tools"]}],
+    "nodes": [{"id": i, "type": "module", "tier": "sys", "name": i, "drill": "systems", "n": 2, "badges": {},
+               **({"area": a} if a else {})} for i, a in (
+        ("data", "trading"), ("features", "trading"), ("strategy", "trading"), ("risk", "trading"),
+        ("broker", "trading"), ("study", "research"), ("course", "research"), ("container", "deploy"),
+        ("tools", "deploy"))] + [{"id": "vendor", "type": "actor", "kind": "ext", "tier": "sys", "name": "vendor",
+                                   "n": 0, "badges": {}}],
+    "edges": [{"id": f"{s}>{t}", "s": s, "t": t, "kinds": {"flow": 1}, "n": 1, "labels": [lb] if lb else []}
+              for s, t, lb in (("vendor", "data", "M1 candles · HTTPS"), ("data", "features", "CandleBar"),
+                               ("features", "strategy", "FeatureVector"), ("strategy", "risk", "StrategySignal"),
+                               ("risk", "broker", "RiskDecision"), ("study", "strategy", "parity backtests"),
+                               ("course", "study", "methods"), ("tools", "strategy", "run YAML"),
+                               ("container", "tools", "image"), ("data", "study", "bars"))]}
+
+AREAS_RUN = """
+import { layoutLevel } from './layout.mjs';
+import fs from 'fs';
+const lv = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const a = layoutLevel(lv, { aspect: 1.75 }), b = layoutLevel(lv, { aspect: 1.75 });
+const bez = (P, j, t) => { const u = 1 - t; return [0, 1].map((c) => u*u*u*P[j][c] + 3*u*u*t*P[j+1][c] + 3*u*t*t*P[j+2][c] + t*t*t*P[j+3][c]); };
+const inside = (x, y, q, m = 2) => x > q.x + m && x < q.x + q.w - m && y > q.y + m && y < q.y + q.h - m;
+const bad = [], member = {};
+for (const ar of lv.areas) for (const m of ar.members) member[m] = ar.id;
+for (const [id, r] of Object.entries(a.nodes)) {
+  const box = member[id] && a.areas[member[id]];
+  if (box && !(r.x >= box.x && r.y >= box.y + 50 && r.x + r.w <= box.x + box.w && r.y + r.h <= box.y + box.h)) bad.push('outside box ' + id);
+  for (const [aid, q] of Object.entries(a.areas)) if (aid !== member[id] && r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h) bad.push(id + ' overlaps ' + aid);
+}
+for (const e of lv.edges) {
+  const r = a.edges[e.id];
+  if (!r) { bad.push('no route ' + e.id); continue; }
+  for (let j = 0; j + 3 < r.pts.length; j += 3) for (let k = 1; k < 16; k++) {
+    const [x, y] = bez(r.pts, j, k / 16);
+    for (const [id, q] of Object.entries(a.nodes)) if (id !== e.s && id !== e.t && inside(x, y, q)) bad.push(e.id + ' through ' + id);
+    for (const [aid, q] of Object.entries(a.areas)) {
+      const own = member[e.s] === aid || member[e.t] === aid;
+      if (!own && inside(x, y, q)) bad.push(e.id + ' crosses ' + aid);
+      if (inside(x, y, { x: q.x, y: q.y, w: q.w, h: 50 })) bad.push(e.id + ' over title ' + aid);
+    }
+  }
+}
+console.log(JSON.stringify({ same: JSON.stringify(a) === JSON.stringify(b), mode: a.mode, dir: a.dir,
+  areas: Object.keys(a.areas).sort(), bad: [...new Set(bad)] }));
+"""
+
+
+def test_open_area_boxes_layout_in_node(tmp_path):
+    """The root of the Systems lens with areas: members inside their box under its title, boxes apart, every
+    edge routed between real blocks, never through a block, a foreign box or a title; same input, same layout."""
+    import json as _json
+    node = NODE if Path(NODE).is_file() else shutil.which("node")
+    if not node:
+        pytest.skip("node not found")
+    shutil.copyfile(WK / "assets" / "map" / "layout.js", tmp_path / "layout.mjs")
+    (tmp_path / "run.mjs").write_text(AREAS_RUN, encoding="utf-8")
+    (tmp_path / "level.json").write_text(_json.dumps(AREAS_LEVEL), encoding="utf-8")
+    args = [str(tmp_path / "run.mjs"), str(tmp_path / "level.json")]
+    if node == NODE:
+        wslpath = shutil.which("wslpath")
+        if not wslpath:
+            pytest.skip("wslpath not found")
+        args = [subprocess.run([wslpath, "-w", a], capture_output=True, text=True, check=True).stdout.strip() for a in args]
+    r = subprocess.run([node, *args], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    out = _json.loads(r.stdout.strip().splitlines()[-1])
+    assert out["same"] and out["mode"] == "areas" and out["dir"] == "LR"
+    assert out["areas"] == ["deploy", "research", "trading"]
+    assert out["bad"] == [], out["bad"][:8]
+
+
+def test_engine_layout_ignores_the_screen_shape(page):
+    """Spatial memory: a level lays out the same on a wide and on a portrait screen (LR, fixed wrap aspect)."""
+    probe = "(() => ({ frame: H.engine.state().frame, order: H.engine.order() }))()"
+    wide = page("root").js(probe)
+    tall = page("root", w=420, h=860).js(probe)
+    assert wide["frame"]["dir"] == "LR" and wide == tall

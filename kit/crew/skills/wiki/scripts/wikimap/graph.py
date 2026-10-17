@@ -233,6 +233,7 @@ class _Build:
         m.config = self.config
         m.nodes, m.children, m.edges, m.files, m.modules = self.nodes, self.children, self.edges, self.files, self.modules
         m.diagrams = self.diagrams
+        m.sparent, m.areas = dict(tr.get("sparent") or {}), dict(tr.get("areas") or {})
         m.rev = self.compute_rev(tr)
         m.built = _now()
         calls = [e for e in self.edges if e["k"] == "call"]
@@ -416,7 +417,9 @@ class _Build:
             for nid in self._symbols_in(fid):
                 if self.nodes[nid]["kind"] in CLASS_KINDS:
                     own.setdefault(owner, {}).setdefault(self.nodes[nid]["qual"], nid)
-        light = {"nodes": {i: n for i, n in self.nodes.items() if n["tier"] == "sys"},
+        sp = self.tr.get("sparent") or {}
+        light = {"nodes": {i: ({**n, "parent": sp[i]} if i in sp else n) for i, n in self.nodes.items()
+                           if n["tier"] == "sys"},
                  "diagrams": self.tr.get("diagrams", {})}
         for cid in sorted(light["diagrams"]):
             if cid not in self.nodes:
@@ -616,6 +619,8 @@ class Map:
         self.files: dict[str, dict] = {}
         self.modules: dict[str, dict] = {}
         self.diagrams: dict[str, dict] = {}
+        self.sparent: dict[str, str] = {}  # Systems-lens parent overrides (config `systems.areas`)
+        self.areas: dict[str, dict] = {}
         self.stats: dict = {}
         self.findings: list = []
         self.config: dict = {}
@@ -625,31 +630,97 @@ class Map:
         self._init()
 
     def _init(self) -> None:
-        self._chains: dict[str, list[str]] = {}
+        self._chains: dict[tuple, list[str]] = {}
+        self._skids, self._sdrop = self._overlay()
         self._levels: dict[tuple, dict | None] = {}
         self._out: dict[str, list[dict]] | None = None
         self._in: dict[str, list[dict]] | None = None
 
     # ---------- hierarchy ----------
-    def chain(self, nid: str) -> list[str]:
-        """Root-first ids from the root down to `nid` (inclusive). Unknown ids → []."""
-        got = self._chains.get(nid)
+    def _overlay(self) -> tuple[dict[str, list[str]], set[str]]:
+        """Systems-lens children of the containers the areas touch, and the containers they leave empty.
+
+        A directory group or module whose module/group children all moved into areas (and that is no member
+        itself) drops out of the Systems lens; its own code stays in the Code lens.
+        """
+        if not self.sparent and not self.areas:
+            return {}, set()
+        sk: dict[str, list[str]] = {}
+
+        def kids(c: str) -> list[str]:
+            if c not in sk:
+                sk[c] = list(self.children.get(c, []))
+            return sk[c]
+        for a in self.areas:
+            if a in self.nodes:
+                kids(".").append(a)
+                kids(a)
+        for nid, a in sorted(self.sparent.items()):
+            p = self.nodes[nid].get("parent")
+            if p is not None and nid in kids(p):
+                kids(p).remove(nid)
+            kids(a).append(nid)
+        isbox = lambda k: self.nodes[k]["type"] in ("module", "group")  # noqa: E731
+        drop: set[str] = set()
+        todo = [c for c in sk if c != "." and c not in self.areas]
+        while todo:
+            c = todo.pop()
+            if c in drop or c in self.sparent or c == "." or c in self.areas:
+                continue
+            if any(isbox(k) for k in self.children.get(c, [])) and not any(isbox(k) for k in kids(c)):
+                drop.add(c)
+                p = self.nodes[c].get("parent")
+                if p is not None and c in kids(p):
+                    kids(p).remove(c)
+                    todo.append(p)
+        for c in sk:
+            sk[c].sort(key=lambda k: (self.nodes[k]["tier"] != "sys", self.nodes[k]["name"].lower(), k))
+        return sk, drop
+
+    def parent_of(self, nid: str, lens: str = "systems") -> str | None:
+        """Parent of a node in `lens`: areas re-parent their members in the Systems lens only."""
+        if lens == "systems" and nid in self.sparent:
+            return self.sparent[nid]
+        n = self.nodes.get(nid)
+        return n.get("parent") if n else None
+
+    def kids(self, nid: str, lens: str = "systems") -> list[str]:
+        if lens == "systems" and nid in self._skids:
+            return self._skids[nid]
+        if lens == "code" and nid in self.areas:
+            return []  # an area exists in the Systems lens only
+        return self.children.get(nid, [])
+
+    def chain(self, nid: str, lens: str = "systems") -> list[str]:
+        """Root-first ids from the root down to `nid` (inclusive) in `lens`. Unknown ids → [].
+
+        In the Systems lens a node inside a container the areas left empty has no chain.
+        """
+        key = (nid, "code" if lens == "code" or not self.sparent else "systems")
+        got = self._chains.get(key)
         if got is not None:
             return got
+        lens = key[1]
         if is_own(nid):
             base = own_base(nid)
-            out = self.chain(base) + [nid] if base in self.nodes else []
+            out = self.chain(base, lens) + [nid] if base in self.nodes else []
+            if base in self.nodes and not out[:-1]:
+                out = []
         elif nid in self.nodes:
-            p = self.nodes[nid].get("parent")
-            out = (self.chain(p) if p is not None else []) + [nid]
+            if lens == "systems" and nid in self._sdrop:
+                out = []
+            else:
+                p = self.parent_of(nid, lens)
+                up = self.chain(p, lens) if p is not None else []
+                out = up + [nid] if (p is None or up) else []
         else:
             out = []
-        self._chains[nid] = out
+        self._chains[key] = out
         return out
 
-    def anc(self, id: str) -> list[str]:
+    def anc(self, id: str, lens: str = "systems") -> list[str]:
         """Ancestors of `id`, root first, excluding `id`."""
-        return self.chain(id)[:-1]
+        return self.chain(id, lens)[:-1]
 
     def module_of(self, id: str) -> str | None:
         """Owning module NAME (plain mode: unit name); None for root-level code in plain mode."""
@@ -666,11 +737,12 @@ class Map:
         n = self.nodes.get(nid)
         return n["name"] if n else nid
 
-    def _path(self, nid: str) -> str:
-        return " › ".join(self._name(i) for i in self.chain(nid)[1:]) or self._name(nid)
+    def _path(self, nid: str, lens: str = "systems") -> str:
+        ch = self.chain(nid, lens) or self.chain(nid, "code")
+        return " › ".join(self._name(i) for i in ch[1:]) or self._name(nid)
 
-    def _crumbs(self, nid: str) -> list[dict]:
-        return [{"id": i, "name": self._name(i)} for i in self.chain(nid)]
+    def _crumbs(self, nid: str, lens: str = "systems") -> list[dict]:
+        return [{"id": i, "name": self._name(i)} for i in (self.chain(nid, lens) or self.chain(nid, "code"))]
 
     # ---------- refresh ----------
     def refresh(self) -> bool:
@@ -698,15 +770,16 @@ class Map:
             base = own_base(nid)
             code = any(self.nodes[k]["tier"] == "code" for k in self.children.get(base, []))
             return {"systems": "code" if code else None, "code": "code" if code else None}
-        kids = self.children.get(nid, [])
+        kids = self.kids(nid, "systems")
         sys_ = any(self.nodes[k]["tier"] == "sys" for k in kids)
         code = any(self.nodes[k]["tier"] == "code" for k in kids)
-        return {"systems": "systems" if sys_ else ("code" if code else None), "code": "code" if kids else None}
+        return {"systems": "systems" if sys_ else ("code" if code else None),
+                "code": "code" if self.kids(nid, "code") else None}
 
     def _n(self, nid: str, lens: str) -> int:
         if is_own(nid):
             return sum(1 for k in self.children.get(own_base(nid), []) if self.nodes[k]["tier"] == "code")
-        kids = self.children.get(nid, [])
+        kids = self.kids(nid, lens)
         if lens == "systems":
             s = sum(1 for k in kids if self.nodes[k]["tier"] == "sys")
             if s:
@@ -756,10 +829,17 @@ class Map:
             if "#" in nid:
                 continue
             n = self.nodes[nid]
-            nodes.append({"id": nid, "parent": n.get("parent"), "type": n["type"], "tier": n["tier"],
-                          "kind": n.get("kind"), "name": n["name"], "title": n.get("title") or n["name"],
-                          "path": n.get("path"), "lang": n.get("lang"), "n": len(self.children.get(nid, [])),
-                          "drill": self._drill(nid), "item": n.get("item"), "badges": n.get("badges") or {}})
+            row = {"id": nid, "parent": n.get("parent"), "type": n["type"], "tier": n["tier"],
+                   "kind": n.get("kind"), "name": n["name"], "title": n.get("title") or n["name"],
+                   "path": n.get("path"), "lang": n.get("lang"), "n": len(self.children.get(nid, [])),
+                   "drill": self._drill(nid), "item": n.get("item"), "badges": n.get("badges") or {}}
+            if nid in self.sparent:
+                row["sp"] = self.sparent[nid]  # the Systems-lens parent (an area)
+            elif nid in self._sdrop:
+                row["sp"] = None  # not shown in the Systems lens
+            if nid in self.areas:
+                row["n"] = len(self._skids.get(nid, []))
+            nodes.append(row)
         rb = (self.nodes.get(".") or {}).get("badges") or {}
         counts = {"modules": len(self.modules),
                   "groups": sum(1 for n in self.nodes.values() if n["type"] == "group"),
@@ -777,9 +857,11 @@ class Map:
                 return None
             kids = [k for k in self.children.get(base, []) if self.nodes[k]["tier"] == "code"]
             return kids or None
-        if at not in self.nodes:
+        if at not in self.nodes or (lens == "systems" and at in self._sdrop):
             return None
-        kids = self.children.get(at, [])
+        kids = self.kids(at, lens)
+        if lens == "systems" and at == "." and self.areas:
+            kids = [x for k in kids for x in (self.kids(k, "systems") if k in self.areas else [k])]
         if lens == "systems":
             sys_ = [k for k in kids if self.nodes[k]["tier"] == "sys"]
             if not sys_:
@@ -800,7 +882,8 @@ class Map:
 
     def _lift_fn(self, lens: str, at: str, members: list[str]):
         own_level = is_own(at)
-        cc = self.chain(at)
+        opened = set(self.areas) if lens == "systems" and at == "." else set()
+        cc = self.chain(at, lens)
         mset = set(members)
         has_own = own_id(at) in mset
         if own_level:
@@ -827,7 +910,7 @@ class Map:
             return ("g", ch[best])
 
         def mp(x: str):
-            ch = self.chain(x)
+            ch = self.chain(x, lens)
             if not ch:
                 return None
             if own_level:
@@ -842,6 +925,10 @@ class Map:
                 if len(ch) == d + 1:
                     return ("self",)
                 c = ch[d + 1]
+                if c in opened:  # an open area box: the edge lands on its member, never on the box
+                    if len(ch) == d + 2:
+                        return None
+                    c = ch[d + 2]
                 if lens == "systems" and self.nodes[c]["tier"] == "code":
                     return ("in", own_id(at)) if has_own else None
                 return ("in", c)
@@ -852,7 +939,27 @@ class Map:
         members = self._members(lens, at)
         if members is None:
             return None
-        mp, has_own = self._lift_fn(lens, at, members)
+        opened = set(self.areas) if lens == "systems" and at == "." else set()
+        same: dict[str, str] = {}
+        if opened:  # one block per outside actor: the area diagrams and the root diagram each draw their own copy
+            byname: dict[tuple, list[str]] = {}
+            for k in members:
+                n = self.nodes.get(k) or {}
+                if n.get("type") == "actor":
+                    byname.setdefault((n.get("kind"), str(n["name"]).lower()), []).append(k)
+            for ids in byname.values():
+                keep = min(ids, key=lambda k: (k in self.sparent or self.parent_of(k) != ".", k))
+                for k in ids:
+                    if k != keep:
+                        same[k] = keep
+                if len({self.parent_of(k) for k in ids}) > 1:
+                    same.setdefault("~loose:" + keep, keep)  # drawn by several areas: outside every box
+            members = [k for k in members if k not in same]
+        mp0, has_own = self._lift_fn(lens, at, members)
+
+        def mp(x: str):
+            r = mp0(x)
+            return ("in", same[r[1]]) if r and r[0] == "in" and r[1] in same else r
         agg: dict[tuple, dict] = {}
         sides: dict[str, set] = {}
         deferred: list[tuple] = []
@@ -899,7 +1006,7 @@ class Map:
             lifted.append((a, b, e))
         top: dict[str, str] = {}
         for p in peers:  # a ghost inside another ghost folds into the outer one
-            outer = next((c for c in self.chain(own_base(p) if is_own(p) else p)[:-1] if c in peers), None)
+            outer = next((c for c in self.chain(own_base(p) if is_own(p) else p, lens)[:-1] if c in peers), None)
             top[p] = outer or (own_base(p) if is_own(p) and own_base(p) in peers else p)
         for a, b, e in lifted:
             if a[0] == "g":
@@ -910,6 +1017,9 @@ class Map:
                 if a[0] == "self" and b[0] == "self":
                     continue
                 if lens == "systems" and not is_own(at):
+                    if e["k"] in ("flow", "dep") and "g" in (a[0], b[0]):
+                        deferred.append((a, b, e))  # an edge across the boundary: on the child that handles it
+                        continue
                     if not has_own:
                         continue
                     a = ("in", own_id(at)) if a[0] == "self" else a
@@ -930,13 +1040,31 @@ class Map:
             if b[0] == "g":
                 sides.setdefault(b[1], set()).add("out")
             add(ka, kb, e)
+        sys_lv = lens == "systems" and not is_own(at)
+        oid = own_id(at)
+
+        def edge_kid(out: bool) -> str | None:
+            """The member an unplaced boundary edge lands on: fewest inner edges on its outer side, then name."""
+            boxes = [k for k in members if not is_own(k) and (self.nodes.get(k) or {}).get("type") in ("module", "group")]
+            if not boxes:
+                return None
+            inner = [p for p in agg if not p[0].startswith("ghost:") and not p[1].startswith("ghost:")]
+            deg = {k: sum(1 for p in inner if p[0 if out else 1] == k) for k in boxes}
+            return min(boxes, key=lambda k: (deg[k], self.nodes[k]["name"].lower(), k))
         for a, b, e in deferred:  # container-own edges (deps/flows of `at` itself) go to the code that observes them
-            if a[0] == "self":
-                other = key_of(b)
-                pairs = [p for p, g in agg.items() if p[1] == other and g["code"] and not p[0].startswith("ghost:")]
-            else:
-                other = key_of(a)
-                pairs = [p for p, g in agg.items() if p[0] == other and g["code"] and not p[1].startswith("ghost:")]
+            out = a[0] == "self"
+            other = key_of(b) if out else key_of(a)
+            mine = (lambda q: not q.startswith("ghost:") and q != oid) if sys_lv else (lambda q: not q.startswith("ghost:"))
+            pairs = [p for p, g in agg.items() if p[1 if out else 0] == other and mine(p[0 if out else 1])
+                     and (g["code"] or (sys_lv and "flow" in g["kinds"]))]
+            if not pairs and sys_lv and has_own:
+                pairs = [(oid, other) if out else (other, oid)]  # nothing inside handles it: the own code does
+            if not pairs and sys_lv:
+                kid = edge_kid(out)  # nor any own code: the child where the inner flow starts (or ends)
+                if kid:
+                    pairs = [(kid, other) if out else (other, kid)]
+            if sys_lv and pairs and other.startswith("ghost:"):
+                sides.setdefault(other[6:], set()).add("out" if out else "in")
             for p in pairs:
                 add(p[0], p[1], e)
         edges = []
@@ -964,12 +1092,22 @@ class Map:
         ghosts = []
         for peer in sorted(sides):
             sd = sides[peer]
-            ghosts.append({"id": "ghost:" + peer, "peer": peer, "name": self._name(peer), "path": self._path(peer),
-                           "side": "both" if len(sd) > 1 else next(iter(sd)),
-                           "at": own_base(peer) if is_own(peer) else self.nodes[peer].get("parent")})
-        return {"v": 1, "rev": self.rev, "lens": lens, "at": at, "crumbs": self._crumbs(at),
-                "nodes": [self._payload(i, lens) for i in members], "ghosts": ghosts, "edges": edges,
-                "overflow": len(members) > T.BUCKET_OVER}
+            ghosts.append({"id": "ghost:" + peer, "peer": peer, "name": self._name(peer),
+                           "path": self._path(peer, lens), "side": "both" if len(sd) > 1 else next(iter(sd)),
+                           "at": own_base(peer) if is_own(peer) else self.parent_of(peer, lens)})
+        nodes = [self._payload(i, lens) for i in members]
+        out = {"v": 1, "rev": self.rev, "lens": lens, "at": at, "crumbs": self._crumbs(at, lens),
+               "nodes": nodes, "ghosts": ghosts, "edges": edges, "overflow": len(members) > T.BUCKET_OVER}
+        if opened:  # the root of the Systems lens: each area is an open box around its members
+            for p in nodes:
+                a = self.sparent.get(p["id"]) or self.parent_of(p["id"])
+                if a in opened and "~loose:" + p["id"] not in same:
+                    p["area"] = a
+            out["areas"] = [{"id": a, "name": self.nodes[a]["name"], "title": self.nodes[a].get("title") or a,
+                             "brief": self._brief(self.nodes[a]), "item": self.nodes[a].get("item"),
+                             "members": [p["id"] for p in nodes if p.get("area") == a]}
+                            for a in self.kids(".", "systems") if a in opened]
+        return out
 
     # ---------- /api/map/node ----------
     def _adj(self):
@@ -1063,7 +1201,7 @@ class Map:
         findings = []
         for f in self.findings or []:
             fn = getattr(f, "node", None)
-            if fn == nid or (fn and nid in self.chain(fn) and n.get("type") != "symbol"):
+            if fn == nid or (fn and n.get("type") != "symbol" and (nid in self.chain(fn) or nid in self.chain(fn, "code"))):
                 try:
                     findings.append(f.line())
                 except Exception:
@@ -1132,8 +1270,8 @@ class Map:
         out = []
         for _, nid, path in hits[:max(1, min(100, int(limit)))]:
             n = self.nodes[nid]
-            at = n.get("parent") or "."
             lens = "systems" if n["tier"] == "sys" else "code"
+            at = self.parent_of(nid, lens) or "."
             out.append({"id": nid, "name": n["name"], "type": n["type"], "kind": n.get("kind"), "path": path,
                         "at": at, "lens": lens})
         return out
@@ -1184,10 +1322,17 @@ class Map:
         if not lv:
             return
         width = max((len(p["name"]) for p in lv["nodes"]), default=0)
-        for p in lv["nodes"]:
-            out.append(self._node_line(p, width, ind))
-            if depth > 1 and p.get("drill") == lens:
-                self._show_nodes(lens, p["id"], depth - 1, ind + "  ", out)
+        groups = [(None, [p for p in lv["nodes"] if not p.get("area")])]
+        groups += [(a, [p for p in lv["nodes"] if p.get("area") == a["id"]]) for a in lv.get("areas") or []]
+        for a, ps in groups:
+            sub = ind
+            if a is not None:
+                out.append(f"{ind}[{a['title']}]  area/{a['id']}")
+                sub = ind + "  "
+            for p in ps:
+                out.append(self._node_line(p, width, sub))
+                if depth > 1 and p.get("drill") == lens:
+                    self._show_nodes(lens, p["id"], depth - 1, sub + "  ", out)
 
     def show_text(self, lens: str, at: str, depth: int = 1) -> str:
         lv = self.level(lens, at)
@@ -1203,10 +1348,13 @@ class Map:
         for e in lv["edges"]:
             kinds = " ".join(k if (k in ("flow", "dep") and n == 1) else f"{k}×{n}" for k, n in e["kinds"].items())
             rows.append((f"{names.get(e['s'], e['s'])} → {names.get(e['t'], e['t'])}", kinds,
-                         " · ".join(e["labels"]), e["state"]))
+                         list(e["labels"]), e["state"]))
         w = max((len(r[0]) for r in rows), default=0)
         for pair, kinds, labels, state in rows:
-            out.append("  " + "  ".join([f"{pair:<{w}}", kinds] + ([f'"{labels}"'] if labels else []) + [state]))
+            head = f'"{labels[0]}"' + (f" +{len(labels) - 1} more" if len(labels) > 1 else "") if labels else ""
+            out.append("  " + "  ".join([f"{pair:<{w}}", kinds] + ([head] if head else []) + [state]))
+            if len(labels) > 1:  # several labels lifted onto one edge: one per line
+                out.extend(f"      · {lb}" for lb in labels)
         if not rows:
             out.append("  (none)")
         out.append("ghosts:")

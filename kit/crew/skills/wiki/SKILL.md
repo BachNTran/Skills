@@ -54,10 +54,23 @@ docs match the code. Below, `W` = `python3 <this skill's dir>/scripts/wiki.py`.
   from each overview's Mermaid diagram, with the drawn interactions (labels, dashed "uses") plus `deps`. A
   module that also holds code shows an "own code" block. **Code** goes below the module line: dirs, files,
   classes, functions, with call, import, inherit, contract (proto) and data (SQL) edges.
+- **Areas** (Systems only) group modules by purpose instead of folder. In `.wikimap/config.json`:
+  `"systems": {"areas": [{"id": "trading_system", "title": "Trading system", "doc": "docs/x.system_map.md#Trading
+  system", "members": ["market_data", "engines", "..."]}]}`. Members are module or group names (or paths). At the
+  Systems root each area is an open box with its members inside and every edge joins real modules, never a
+  box; click a box title (or `#view=systems&at=<id>`) for the area alone with its doc's diagram, the first
+  flowchart under `#Heading`. A folder group left empty drops out of Systems; Code keeps the folder tree.
+  UNDRAWN covers areas: draw every member in its area's diagram, and the areas in the root overview.
 - Double-click, Enter, or zoom into a block to drill in; zoom out or Backspace to go up. Faded "ghost" blocks
-  at the edge are peers outside this level: click one to fly there. A Systems block with only code inside hands
+  at the edge are peers outside this level: click one to fly there. An edge that entered a block one level up
+  still shows inside it, from a ghost to the child that handles it (code first, then the diagram, then the
+  child where the inner flow starts), with the same label. A Systems block with only code inside hands
   off to Code. Edge colour tells the story: mint = drawn and found in code, dashed mint = drawn but not
-  traced, rose with `!` = code coupling no `deps` allow (XCALL), sand dash-dot = contract or data.
+  traced, rose with `!` = code coupling no `deps` allow (XCALL), sand dash-dot = contract or data. Several
+  labels on one edge show as the first plus "+N more"; the tooltip and `W show` list them all. A call matched
+  by bare name only (no import between the two modules) is not drawn.
+- Layout is stable: every level flows left to right and wraps at a fixed shape, whatever the screen, so the
+  same level always looks the same. No edge runs behind a block, over an area title or through another area.
 - The right panel shows the brief, signature, doc, docs by role (overview, ICD, req, tests), REQ chips, callers
   and callees, findings, and buttons: Drill · Trace ↑ · Trace ↓ · Open · Show in Code/Systems. Source opens
   in Read with the lines highlighted and a Back to map button.
