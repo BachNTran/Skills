@@ -444,7 +444,7 @@ class _Build:
             for e in r["edges"]:
                 if e["s"] == e["t"] or e["s"] not in self.nodes or e["t"] not in self.nodes:
                     continue
-                self.edges.append({"s": e["s"], "t": e["t"], "k": "flow", "conf": 1.0, "why": "mermaid",
+                self.edges.append({"s": e["s"], "t": e["t"], "k": "flow", "conf": 1.0, "why": "mermaid", "diag": cid,
                                    "file": r["doc"], "line": e.get("line") or 0, "label": e.get("label") or "",
                                    "dash": bool(e.get("dash")), "prov": f"{r['doc']}:{e.get('line') or 0}"})
 
@@ -632,6 +632,8 @@ class Map:
     def _init(self) -> None:
         self._chains: dict[tuple, list[str]] = {}
         self._skids, self._sdrop = self._overlay()
+        self._actors: dict | None = None
+        self._gbase: set | None = None
         self._levels: dict[tuple, dict | None] = {}
         self._out: dict[str, list[dict]] | None = None
         self._in: dict[str, list[dict]] | None = None
@@ -676,6 +678,64 @@ class Map:
         for c in sk:
             sk[c].sort(key=lambda k: (self.nodes[k]["tier"] != "sys", self.nodes[k]["name"].lower(), k))
         return sk, drop
+
+    def _akey(self, nid: str) -> tuple:
+        n = self.nodes.get(nid) or {}
+        return (n.get("kind"), " ".join(str(n.get("name") or nid).lower().split()))
+
+    def _actor_canon(self, key: tuple) -> str:
+        """One id per actor name across all diagrams (the smallest), so a level shows one ghost per actor."""
+        got = self._actors
+        if got is None:
+            got = self._actors = {}
+            for nid in sorted(self.nodes):
+                if self.nodes[nid].get("type") == "actor":
+                    got.setdefault(self._akey(nid), nid)
+        return got.get(key) or ""
+
+    def _base_members(self, members: list[str], agg: dict) -> set[str]:
+        """Members that are shared vocabulary (config `systems.base`, else: boxes only ever targeted by dashed
+        "uses" flows, from three or more sources)."""
+        cfg = (self.config.get("systems") or {}) if isinstance(self.config.get("systems"), dict) else {}
+        boxes = [k for k in members if (self.nodes.get(k) or {}).get("type") in ("module", "group")]
+        if "base" in cfg:
+            names = {str(x) for x in cfg.get("base") or []}
+            return {k for k in boxes if k in names or self.nodes[k]["name"] in names}
+        out = set()
+        for k in boxes:
+            into = [(p, g) for p, g in agg.items() if p[1] == k and g["flows"]]
+            if any(p[0] == k and g["flows"] for p, g in agg.items()):
+                continue
+            if len({p[0] for p, _ in into}) >= 3 and all(all(g["flows"]) for _, g in into):
+                out.add(k)
+        return out
+
+    def _global_base(self) -> set[str]:
+        """Base members seen from the root and from each area (where shared vocabulary is placed)."""
+        if self._gbase is None:
+            self._gbase = set()  # while it is computed, levels see no base ghosts (no recursion)
+            got: set[str] = set()
+            for at in (".", *sorted(self.areas)):
+                lv = self.level("systems", at)
+                got |= {n["id"] for n in (lv or {}).get("nodes", []) if n.get("base")}
+            self._levels = {k: v for k, v in self._levels.items() if k[0] != "systems"}  # rebuilt with it
+            self._gbase = got
+        return self._gbase
+
+    def _shown(self, e: dict, at: str, depth: int = 0) -> bool:
+        """A drawn flow belongs to level `at` when `at`'s diagram drew it (the root: also the area diagrams),
+        or it crosses `at`'s boundary and the level above shows it (continuity); never from a child diagram."""
+        d = e.get("diag")
+        if d is None or d == at:
+            return True
+        if at == ".":
+            return d in self.areas
+        if depth > 16:
+            return False
+        if (at in self.chain(e["s"], "systems")) == (at in self.chain(e["t"], "systems")):
+            return False
+        p = self.parent_of(at, "systems")
+        return p is not None and self._shown(e, p, depth + 1)
 
     def parent_of(self, nid: str, lens: str = "systems") -> str | None:
         """Parent of a node in `lens`: areas re-parent their members in the Systems lens only."""
@@ -940,26 +1000,35 @@ class Map:
         if members is None:
             return None
         opened = set(self.areas) if lens == "systems" and at == "." else set()
+        sys_lv = lens == "systems" and not is_own(at)
         same: dict[str, str] = {}
-        if opened:  # one block per outside actor: the area diagrams and the root diagram each draw their own copy
+        mine: dict[tuple, str] = {}
+        if sys_lv:  # one block per outside actor: every diagram draws its own copy of the same actor
             byname: dict[tuple, list[str]] = {}
             for k in members:
-                n = self.nodes.get(k) or {}
-                if n.get("type") == "actor":
-                    byname.setdefault((n.get("kind"), str(n["name"]).lower()), []).append(k)
-            for ids in byname.values():
-                keep = min(ids, key=lambda k: (k in self.sparent or self.parent_of(k) != ".", k))
+                if (self.nodes.get(k) or {}).get("type") == "actor":
+                    byname.setdefault(self._akey(k), []).append(k)
+            for key, ids in byname.items():
+                keep = min(ids, key=lambda k: (k in self.sparent or self.parent_of(k) != at, k))
+                mine[key] = keep
                 for k in ids:
                     if k != keep:
                         same[k] = keep
-                if len({self.parent_of(k) for k in ids}) > 1:
+                if opened and len({self.parent_of(k) for k in ids}) > 1:
                     same.setdefault("~loose:" + keep, keep)  # drawn by several areas: outside every box
             members = [k for k in members if k not in same]
         mp0, has_own = self._lift_fn(lens, at, members)
 
         def mp(x: str):
             r = mp0(x)
-            return ("in", same[r[1]]) if r and r[0] == "in" and r[1] in same else r
+            if not r or r[0] not in ("in", "g"):
+                return r
+            if r[0] == "in" and r[1] in same:
+                return ("in", same[r[1]])
+            if sys_lv and r[0] == "g" and (self.nodes.get(r[1]) or {}).get("type") == "actor":
+                key = self._akey(r[1])  # an outside copy of an actor: the one block (inside, or one ghost)
+                return ("in", mine[key], "alias") if key in mine else ("g", self._actor_canon(key))
+            return r
         agg: dict[tuple, dict] = {}
         sides: dict[str, set] = {}
         deferred: list[tuple] = []
@@ -993,6 +1062,8 @@ class Map:
         lifted = []
         peers: set[str] = set()
         for e in self.edges:
+            if sys_lv and e["k"] == "flow" and not self._shown(e, at):
+                continue  # a level shows its own diagram (and what crosses its boundary from the level above)
             a, b = mp(e["s"]), mp(e["t"])
             if a is None or b is None:
                 continue
@@ -1017,7 +1088,7 @@ class Map:
                 if a[0] == "self" and b[0] == "self":
                     continue
                 if lens == "systems" and not is_own(at):
-                    if e["k"] in ("flow", "dep") and "g" in (a[0], b[0]):
+                    if e["k"] in ("flow", "dep") and ("g" in (a[0], b[0]) or len(a) > 2 or len(b) > 2):
                         deferred.append((a, b, e))  # an edge across the boundary: on the child that handles it
                         continue
                     if not has_own:
@@ -1067,6 +1138,10 @@ class Map:
                 sides.setdefault(other[6:], set()).add("out" if out else "in")
             for p in pairs:
                 add(p[0], p[1], e)
+        base = self._base_members(members, agg) if sys_lv else set()
+        if sys_lv:
+            gb = self._global_base()
+            base |= {k for p in agg for k in p if k.startswith("ghost:") and k[6:] in gb}
         edges = []
         for (a, b), g in sorted(agg.items()):
             declared = "flow" in g["kinds"] or "dep" in g["kinds"]
@@ -1085,7 +1160,7 @@ class Map:
                           "kinds": {k: g["kinds"][k] for k in KIND_ORDER if k in g["kinds"]},
                           "n": g["n"], "conf": round(g["conf"], 3), "hist": g["hist"], "labels": g["labels"],
                           "dash": bool(g["flows"]) and all(g["flows"]) and not g["code"], "state": state,
-                          "x": g["x"], "prov": g["prov"][:5],
+                          "x": g["x"], "prov": g["prov"][:5], **({"base": True} if a in base or b in base else {}),
                           "samples": [{"s": s["s"], "t": s["t"], "k": s["k"], "file": s.get("file"),
                                        "line": s.get("line"), "conf": s.get("conf"), "why": s.get("why")}
                                       for s in samples]})
@@ -1096,6 +1171,9 @@ class Map:
                            "path": self._path(peer, lens), "side": "both" if len(sd) > 1 else next(iter(sd)),
                            "at": own_base(peer) if is_own(peer) else self.parent_of(peer, lens)})
         nodes = [self._payload(i, lens) for i in members]
+        for p in nodes:
+            if p["id"] in base:
+                p["base"] = True  # shared vocabulary: drawn as a strip under its box, its edges on demand
         out = {"v": 1, "rev": self.rev, "lens": lens, "at": at, "crumbs": self._crumbs(at, lens),
                "nodes": nodes, "ghosts": ghosts, "edges": edges, "overflow": len(members) > T.BUCKET_OVER}
         if opened:  # the root of the Systems lens: each area is an open box around its members
@@ -1103,6 +1181,14 @@ class Map:
                 a = self.sparent.get(p["id"]) or self.parent_of(p["id"])
                 if a in opened and "~loose:" + p["id"] not in same:
                     p["area"] = a
+            tag = {p["id"]: p.get("area") for p in nodes}
+            for p in nodes:  # an outside actor that only talks to one area sits in that area's box
+                if p.get("area") or p["type"] != "actor":
+                    continue
+                near = {tag.get(e["t"] if e["s"] == p["id"] else e["s"]) for e in edges
+                        if p["id"] in (e["s"], e["t"]) and "flow" in e["kinds"]}
+                if len(near) == 1 and None not in near:
+                    p["area"] = near.pop()
             out["areas"] = [{"id": a, "name": self.nodes[a]["name"], "title": self.nodes[a].get("title") or a,
                              "brief": self._brief(self.nodes[a]), "item": self.nodes[a].get("item"),
                              "members": [p["id"] for p in nodes if p.get("area") == a]}

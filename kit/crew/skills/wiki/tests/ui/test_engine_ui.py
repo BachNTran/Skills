@@ -688,3 +688,69 @@ def test_engine_layout_ignores_the_screen_shape(page):
     wide = page("root").js(probe)
     tall = page("root", w=420, h=860).js(probe)
     assert wide["frame"]["dir"] == "LR" and wide == tall
+
+
+PIPE_LEVEL = {"v": 1, "rev": "pipe", "lens": "systems", "at": ".", "ghosts": [],
+    "nodes": [{"id": i, "type": "module", "tier": "sys", "name": i, "drill": None, "n": 0, "badges": {},
+               **({"base": True} if i == "vocab" else {})}
+              for i in ("aa_ui", "broker", "data", "engine", "features", "ledger", "risk", "strategy", "telemetry", "vocab")],
+    "edges": [{"id": f"{s}>{t}", "s": s, "t": t, "kinds": {"flow": 1}, "n": 1, "labels": [lb],
+               **({"dash": True, "base": True} if t == "vocab" else {})}
+              for s, t, lb in (("data", "engine", "CandleBar · next_bar() · per bar"),
+                               ("engine", "features", "CandleBar · update() · per bar"),
+                               ("features", "strategy", "FeatureFrame · engine loop · per bar"),
+                               ("strategy", "risk", "StrategySignal · engine loop · per bar"),
+                               ("risk", "broker", "OrderIntent · engine loop · next open"),
+                               ("broker", "ledger", "FillEvent · engine loop · per fill"),
+                               ("ledger", "risk", "PortfolioState · engine loop · per bar"),
+                               ("engine", "telemetry", "run records · call · per bar"),
+                               ("telemetry", "aa_ui", "runs · read-only SQL · per request"),
+                               ("aa_ui", "engine", "EngineContext · BacktestEngine · on demand"),
+                               ("engine", "vocab", "CandleBar · import"), ("risk", "vocab", "RiskDecision · import"))]}
+
+PIPE_RUN = """
+import { layoutLevel } from './layout.mjs';
+import fs from 'fs';
+const lv = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const off = { kinds: new Set(['flow']), minConf: 0, base: false }, on = { ...off, base: true };
+const a = layoutLevel(lv, { aspect: 1.75, filter: off }), b = layoutLevel(lv, { aspect: 1.75, filter: off });
+const c = layoutLevel(lv, { aspect: 1.75, filter: on });
+const x = (id) => a.nodes[id].x, v = a.nodes.vocab;
+const others = Object.entries(a.nodes).filter(([id]) => id !== 'vocab').map(([, r]) => r);
+console.log(JSON.stringify({ same: JSON.stringify(a) === JSON.stringify(b),
+  order: ['data', 'engine', 'features', 'strategy', 'risk', 'broker', 'ledger'].map(x),
+  feedback: !!(a.edges['ledger>risk'] || {}).back, request: !!(a.edges['aa_ui>engine'] || {}).back,
+  hot: ['data>engine', 'engine>features', 'features>strategy', 'strategy>risk', 'risk>broker', 'broker>ledger'].map((id) => !!(a.edges[id] || {}).back),
+  strip: v.y >= Math.max(...others.map((r) => r.y + r.h)) && v.w >= Math.max(...others.map((r) => r.x + r.w)) - Math.min(...others.map((r) => r.x)) - 1,
+  baseOff: !a.edges['engine>vocab'] && !a.edges['risk>vocab'], baseOn: !!c.edges['engine>vocab'] && !!c.edges['risk>vocab'] }));
+"""
+
+
+def _node_run(tmp_path, script, level):
+    import json as _json
+    node = NODE if Path(NODE).is_file() else shutil.which("node")
+    if not node:
+        pytest.skip("node not found")
+    shutil.copyfile(WK / "assets" / "map" / "layout.js", tmp_path / "layout.mjs")
+    (tmp_path / "run.mjs").write_text(script, encoding="utf-8")
+    (tmp_path / "level.json").write_text(_json.dumps(level), encoding="utf-8")
+    args = [str(tmp_path / "run.mjs"), str(tmp_path / "level.json")]
+    if node == NODE:
+        wslpath = shutil.which("wslpath")
+        if not wslpath:
+            pytest.skip("wslpath not found")
+        args = [subprocess.run([wslpath, "-w", a], capture_output=True, text=True, check=True).stdout.strip() for a in args]
+    r = subprocess.run([node, *args], capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0, r.stderr
+    return _json.loads(r.stdout.strip().splitlines()[-1])
+
+
+def test_pipeline_ranks_by_the_drawn_flow_in_node(tmp_path):
+    """Solid flows rank the blocks left to right; the rarest edge of each cycle (the feedback and the request
+    edge, by the rate in their label) runs back as an arc; dashed edges to a base block never rank; the base
+    block is a full-width strip under everything, its edges drawn only when asked for; same input, same layout."""
+    out = _node_run(tmp_path, PIPE_RUN, PIPE_LEVEL)
+    assert out["same"]
+    assert out["order"] == sorted(out["order"]) and len(set(out["order"])) == 7, out["order"]
+    assert out["feedback"] and out["request"] and not any(out["hot"]), out
+    assert out["strip"] and out["baseOff"] and out["baseOn"], out

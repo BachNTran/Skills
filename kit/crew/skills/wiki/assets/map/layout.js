@@ -5,6 +5,12 @@
 
 export const PAD = { x: 44, top: 76, bottom: 44 };
 export const LABEL_MAX = 168;    // widest edge label line, world px at zoom 1
+export const LABELS_ALWAYS = 12; // a level with more visible edges shows labels on hover and selection only
+
+/** How many of a level's edges pass the filter. */
+export function visibleEdges(level, filter) {
+  return (level.edges || []).filter((e) => e.s !== e.t && Object.keys(visibleKinds(e, filter)).length).length;
+}
 const GAP_Y = 24;          // min vertical gap between blocks in one layer
 const GAP_DUMMY = 14;      // gap next to a long-edge waypoint (the route runs through it)
 const GHOST_GAP = 52;      // frame → ghost column
@@ -23,6 +29,7 @@ export function visibleKinds(e, filter) {
   const out = {};
   if (!e || !e.kinds) return out;
   if (filter && typeof filter.minConf === 'number' && (e.conf ?? 1) < filter.minConf) return out;
+  if (filter && filter.base === false && e.base) return out; // edges to shared base blocks: on demand
   for (const k of Object.keys(e.kinds)) if (!filter || !filter.kinds || filter.kinds.has(k)) out[k] = e.kinds[k];
   return out;
 }
@@ -38,7 +45,7 @@ export function nodeSize(n, measure = defMeasure) {
   if (n.box) return { w: n.box.w, h: n.box.h }; // an open area box: sized by its own layout
   const m = measure(n.name || n.id, 'name');
   const cont = n.drill ? clamp(Math.sqrt(n.n || 0) / 2, 1, 2) : 1;
-  if (n.type === 'actor') return { w: clamp(48 + m, 120, 260), h: 52 };
+  if (n.type === 'actor') return { w: clamp(56 + m * 1.15, 150, 300), h: 56 }; // room for the whole name when zoomed out
   if (SYS.has(n.type)) return { w: Math.round(clamp(32 + m, 168, 320) * cont), h: Math.round(92 * cont) };
   if (n.type === 'dir' || n.type === 'bucket') return { w: Math.round(clamp(40 + m + badgeW(n), 160, 280) * cont), h: Math.round(72 * cont) };
   if (n.type === 'file') return { w: clamp(48 + m, 150, 260), h: 56 };
@@ -69,22 +76,62 @@ function greedyOrder(ids, edges) {
   const n = ids.length, outs = ids.map(() => []), ins = ids.map(() => []);
   for (const [a, b, w = 1] of edges) { outs[a].push([b, w]); ins[b].push([a, w]); }
   const outd = outs.map((l) => l.reduce((s, x) => s + x[1], 0)), ind = ins.map((l) => l.reduce((s, x) => s + x[1], 0));
-  const gone = new Uint8Array(n), s1 = [], s2 = [];
+  const gone = new Uint8Array(n), s1 = [], s2 = [], fed = new Float64Array(n); // fed: weight in from the placed front
   let left = n;
-  const drop = (v) => { gone[v] = 1; left--; for (const [w, x] of outs[v]) ind[w] -= x; for (const [w, x] of ins[v]) outd[w] -= x; };
+  const drop = (v, front) => { gone[v] = 1; left--; for (const [w, x] of outs[v]) { ind[w] -= x; if (front) fed[w] += x; } for (const [w, x] of ins[v]) outd[w] -= x; };
   while (left > 0) {
     let moved = true;
     while (moved) {
       moved = false;
-      for (let v = 0; v < n; v++) if (!gone[v] && outd[v] <= 1e-9) { s2.push(v); drop(v); moved = true; }
-      for (let v = 0; v < n; v++) if (!gone[v] && ind[v] <= 1e-9) { s1.push(v); drop(v); moved = true; }
+      for (let v = 0; v < n; v++) if (!gone[v] && outd[v] <= 1e-9) { s2.push(v); drop(v, false); moved = true; }
+      for (let v = 0; v < n; v++) if (!gone[v] && ind[v] <= 1e-9) { s1.push(v); drop(v, true); moved = true; }
     }
     if (left === 0) break;
-    let best = -1, bd = -Infinity;
-    for (let v = 0; v < n; v++) if (!gone[v] && outd[v] - ind[v] > bd) { bd = outd[v] - ind[v]; best = v; }
-    s1.push(best); drop(best);
+    // a cycle: the vertex with the most out-weight surplus, then the one the placed part feeds most (the flow
+    // enters the cycle there, so the cut falls on the edge closing it), then the first
+    let best = -1, bd = -Infinity, bf = -Infinity;
+    for (let v = 0; v < n; v++) {
+      if (gone[v]) continue;
+      const d = outd[v] - ind[v];
+      if (d > bd + 1e-9 || (Math.abs(d - bd) <= 1e-9 && fed[v] > bf + 1e-9)) { bd = d; bf = fed[v]; best = v; }
+    }
+    s1.push(best); drop(best, true);
   }
   return s1.concat(s2.reverse());
+}
+
+/** How often an edge's flow happens, from the rate part of its label (`what · how · rate`): the hot path
+ *  (per bar, per fill, every 60 s) weighs most, so cycles break on the rarer read-back or request edge. */
+export function rateWeight(e) {
+  const l = (e.labels || []).join(' · ').toLowerCase();
+  if (/per (bar|fill|tick|sample|message|event|frame|second)|next open|every |\/s\b|engine loop/.test(l)) return 4;
+  if (/on demand|on open|per start|per build|manual|dev\b|per ci/.test(l)) return 1;
+  return 2;
+}
+
+/** Back edges of the drawn flow: a weighted greedy feedback arc set (Eades-Lin-Smyth) over the solid flows,
+ *  so the feedback edge (portfolio state back to risk) and the read-back edges go backwards, not a pipeline step. */
+function flowBack(nodesIn, pairs, solid, inner) {
+  const edges = [];
+  pairs.forEach(([a, b], k) => { if (solid[k] && a !== b) edges.push([a, b, rateWeight(inner[k])]); });
+  const ord = greedyOrder(nodesIn.map((n) => n.id), edges), pos = new Array(nodesIn.length);
+  ord.forEach((v, i) => { pos[v] = i; });
+  const back = new Set();
+  pairs.forEach(([a, b], k) => { if (solid[k] && a !== b && pos[a] > pos[b]) back.add(k); });
+  return back;
+}
+
+/** A topological order of the forward solid flows (Kahn, smallest index first): the layering order. */
+function flowOrder(core, pairs, solid, back) {
+  const inCore = new Set(core), indeg = new Map(core.map((v) => [v, 0])), out = new Map(core.map((v) => [v, []]));
+  pairs.forEach(([a, b], k) => { if (solid[k] && !back.has(k) && a !== b && inCore.has(a) && inCore.has(b)) { out.get(a).push(b); indeg.set(b, indeg.get(b) + 1); } });
+  const ready = core.filter((v) => indeg.get(v) === 0).sort((a, b) => a - b), ord = [];
+  while (ready.length) {
+    const v = ready.shift();
+    ord.push(v);
+    for (const w of out.get(v)) { indeg.set(w, indeg.get(w) - 1); if (indeg.get(w) === 0) { ready.push(w); ready.sort((a, b) => a - b); } }
+  }
+  return ord;
 }
 
 function countCross(layers, down) {
@@ -232,9 +279,15 @@ function spreadPorts(list, rect) {
  * aspect: the screen's width/height; a long chain of layers then wraps into bands when that fits it clearly better.
  * → {w, h, mode, nodes:{id:{x,y,w,h,L,o}}, ghosts:{id:{x,y,w,h,side}}, edges:{id:{pts, back}}, order:[ids]}
  */
-export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR', aspect = 0 } = {}) {
-  if (Array.isArray(level.areas) && level.areas.length) return unblock(layoutAreas(level, measure, filter, aspect), level, filter);
-  if (dir !== 'TB') return pins ? layoutCore(level, measure, pins, filter, false, aspect) : unblock(layoutCore(level, measure, pins, filter, false, aspect), level, filter);
+export function layoutLevel(level, { measure = defMeasure, pins = null, filter = null, dir = 'LR', aspect = 0, labels = null } = {}) {
+  const room = labels ?? visibleEdges(level, filter) <= LABELS_ALWAYS;
+  if ((level.ghosts || []).length) { // a ghost whose every edge is filtered out has nothing to say here
+    const live = new Set();
+    for (const e of level.edges || []) if (Object.keys(visibleKinds(e, filter)).length) { live.add(e.s); live.add(e.t); }
+    level = { ...level, ghosts: level.ghosts.filter((g) => live.has(g.id)) };
+  }
+  if (Array.isArray(level.areas) && level.areas.length) return finish(layoutAreas(level, measure, filter, aspect, room), level, filter, measure);
+  if (dir !== 'TB') return pins ? layoutCore(level, measure, pins, filter, false, aspect, room) : finish(layoutFlat(level, measure, filter, aspect, room), level, filter, measure);
   // Top-to-bottom (portrait screens): lay out LR on transposed sizes, then transpose back. The frame keeps its
   // padding (title band on top): final = (core.y - S, core.x + S), core = (final.y - S, final.x + S).
   const S = PAD.top - PAD.x;
@@ -251,7 +304,8 @@ export function layoutLevel(level, { measure = defMeasure, pins = null, filter =
   return { w: Math.max(240, c.h - S), h: Math.max(160, c.w + S), mode: c.mode, dir: 'TB', nodes, ghosts, edges, order };
 }
 
-function layoutCore(level, measure, pins, filter, tb, aspect) {
+function layoutCore(level, measure, pins, filter, tb, aspect, room = true) {
+  let ranked = false; // laid out by its drawn solid flows (then never wrapped into bands)
   const nodesIn = (level.nodes || []).slice().sort((a, b) => byStr(a.id, b.id));
   const ghostsIn = (level.ghosts || []).slice().sort((a, b) => byStr(a.id, b.id));
   const N = nodesIn.length, ix = new Map(nodesIn.map((n, i) => [n.id, i]));
@@ -264,6 +318,7 @@ function layoutCore(level, measure, pins, filter, tb, aspect) {
   const inner = edges.filter((e) => ix.has(e.s) && ix.has(e.t));
   // labels longer than LABEL_MAX wrap to two lines, so a column gap never needs more than that
   const labelW = (e) => {
+    if (!room) return e.n > 1 ? 24 : 14; // labels show on focus only: no room kept for them
     if (tb) return e.labels && e.labels.length ? 40 : e.n > 1 ? 24 : 0; // TB: the gap is vertical, labels need ~2 lines
     if (!(e.labels && e.labels.length)) return e.n > 1 ? 30 : 0;
     const m = measure(e.labels.join(' · '), 'label');
@@ -399,15 +454,28 @@ function layoutCore(level, measure, pins, filter, tb, aspect) {
   /** Sugiyama LR over the core blocks. false (nothing placed) when the layering is too deep to read. */
   function sugiyama(core, iso) {
     const pairs = inner.map((e) => [ix.get(e.s), ix.get(e.t)]);
-    const weight = (e) => { const k = visibleKinds(e, filter); return k.flow ? 4 : k.dep ? 2 : k.inherit ? 1.5 : 1; };
-    const ord = greedyOrder(nodesIn.map((n) => n.id), inner.map((e, i) => [...pairs[i], weight(e)])).filter((v) => !iso.has(v));
-    const pos = new Array(N); ord.forEach((v, i) => { pos[v] = i; });
-    const dag = pairs.map(([a, b]) => (pos[a] < pos[b] ? [a, b, false] : [b, a, true]));
-    // longest-path layering in the FAS order (a topological order of the DAG)
+    // drawn solid flows rank the blocks (the pipeline reads left to right); dashed "uses" and code edges never do
+    const solid = inner.map((e) => { const k = visibleKinds(e, filter); return !!k.flow && !e.dash; });
+    let ord, dag;
     const succ = nodesIn.map(() => []), pred = nodesIn.map(() => []);
-    for (const [a, b] of dag) { succ[a].push(b); pred[b].push(a); }
     const layer = new Array(N).fill(0);
-    for (const v of ord) for (const w of succ[v]) layer[w] = Math.max(layer[w], layer[v] + 1);
+    if (solid.some(Boolean)) {
+      ranked = true;
+      const back = flowBack(nodesIn, pairs, solid, inner);
+      ord = flowOrder(core, pairs, solid, back);
+      pairs.forEach(([a, b], k) => { if (solid[k] && !back.has(k) && a !== b) { succ[a].push(b); pred[b].push(a); } });
+      for (const v of ord) for (const w of succ[v]) layer[w] = Math.max(layer[w], layer[v] + 1);
+      dag = pairs.map(([a, b], k) => (solid[k] && !back.has(k) ? [a, b, false] : [b, a, true])); // provisional
+      dag.solidBack = back;
+    } else {
+      const weight = (e) => { const k = visibleKinds(e, filter); return k.flow ? 4 : k.dep ? 2 : k.inherit ? 1.5 : 1; };
+      ord = greedyOrder(nodesIn.map((n) => n.id), inner.map((e, i) => [...pairs[i], weight(e)])).filter((v) => !iso.has(v));
+      const pos = new Array(N); ord.forEach((v, i) => { pos[v] = i; });
+      dag = pairs.map(([a, b]) => (pos[a] < pos[b] ? [a, b, false] : [b, a, true]));
+      // longest-path layering in the FAS order (a topological order of the DAG)
+      for (const [a, b] of dag) { succ[a].push(b); pred[b].push(a); }
+      for (const v of ord) for (const w of succ[v]) layer[w] = Math.max(layer[w], layer[v] + 1);
+    }
     // promotion: pull each vertex right next to its nearest successor
     for (let i = ord.length - 1; i >= 0; i--) {
       const v = ord[i];
@@ -428,6 +496,11 @@ function layoutCore(level, measure, pins, filter, tb, aspect) {
       }
     }
     if (Math.max(0, ...core.map((v) => layer[v])) + 1 > Math.max(12, 2 * cap)) return false;
+    if (dag.solidBack) { // a non-ranking edge runs forward through the layers, else as an arc like a back edge
+      const back = dag.solidBack;
+      dag = pairs.map(([a, b], k) => (solid[k] ? (back.has(k) ? [b, a, true] : [a, b, false])
+        : layer[a] < layer[b] ? [a, b, false] : [b, a, true]));
+    }
     // vertices: real nodes then waypoints for spans > 1 (back edges are arcs, not waypoints)
     const V = nodesIn.map((n, i) => ({ real: i, L: layer[i], h: size[i].h, key: n.id, skip: iso.has(i) }));
     const down = V.map(() => []), up = V.map(() => []);
@@ -515,7 +588,7 @@ function layoutCore(level, measure, pins, filter, tb, aspect) {
         l.forEach((v, i) => { Y[v] = ys[i]; });
       }
     }
-    if (aspect > 0 && nL >= 3) wrap = wrapBands(V, Y, nL, colX, colW, layer, shiftX);
+    if (aspect > 0 && nL >= 3 && !ranked) wrap = wrapBands(V, Y, nL, colX, colW, layer, shiftX); // a drawn pipeline stays one row
     V.forEach((v, i) => {
       if (v.skip) return;
       if (v.real >= 0) { const s2 = size[v.real]; rect[v.real] = { x: cx(i) - s2.w / 2, y: Y[i], w: s2.w, h: s2.h }; layerOf[v.real] = v.L; }
@@ -802,7 +875,7 @@ const CLEAR = 6;         // routes keep this far from blocks
  * edge between boxes is routed on a grid around every block, title band and foreign box.
  * → layoutLevel's result plus areas:{id:{x,y,w,h,title,name}}.
  */
-function layoutAreas(level, measure, filter, aspect) {
+function layoutAreas(level, measure, filter, aspect, room) {
   const nodesIn = (level.nodes || []).slice().sort((a, b) => byStr(a.id, b.id));
   const areasIn = level.areas.slice().sort((a, b) => byStr(a.id, b.id));
   const areaOf = new Map(), byId = new Map(nodesIn.map((n) => [n.id, n]));
@@ -815,8 +888,8 @@ function layoutAreas(level, measure, filter, aspect) {
     const mem = nodesIn.filter((n) => areaOf.get(n.id) === a.id);
     if (!mem.length) continue;
     const ids = new Set(mem.map((n) => n.id));
-    sub.set(a.id, layoutCore({ nodes: mem, ghosts: [], edges: edges.filter((e) => ids.has(e.s) && ids.has(e.t)) },
-      measure, null, filter, false, aspect ? Math.max(1, aspect * 0.75) : 0));
+    sub.set(a.id, layoutFlat({ nodes: mem, ghosts: [], edges: edges.filter((e) => ids.has(e.s) && ids.has(e.t)) },
+      measure, filter, aspect ? Math.max(1, aspect * 0.75) : 0, room));
   }
   // 2. boxes and loose nodes as one level (edges lifted to the boxes, for ordering and gaps only)
   const box = (id) => (areaOf.has(id) ? 'area:' + areaOf.get(id) : id);
@@ -828,10 +901,10 @@ function layoutAreas(level, measure, filter, aspect) {
     if (s === t || !(byId.has(e.s) || e.s.startsWith('ghost:')) || !(byId.has(e.t) || e.t.startsWith('ghost:'))) continue;
     const id = `${s}>${t}`, g = lifted.get(id);
     if (g) { g.n += e.n || 1; continue; }
-    lifted.set(id, { id, s, t, kinds: { flow: 1 }, n: e.n || 1, labels: e.labels && e.labels.length ? [e.labels[0]] : [] });
+    lifted.set(id, { id, s, t, kinds: { flow: 1 }, n: e.n || 1, dash: !!e.dash, labels: e.labels && e.labels.length ? [e.labels[0]] : [] });
   }
-  const sup = layoutCore({ nodes: top, ghosts: level.ghosts || [], edges: [...lifted.values()] },
-    measure, null, { kinds: new Set(['flow']), minConf: 0 }, false, aspect);
+  const sup = layoutFlat({ nodes: top, ghosts: level.ghosts || [], edges: [...lifted.values()] },
+    measure, { kinds: new Set(['flow']), minConf: 0 }, aspect, room);
   // 3. compose
   const nodes = {}, areas = {}, outEdges = {};
   for (const a of areasIn) {
@@ -985,4 +1058,53 @@ function gridRouter(W, H, nodes, areas, ghosts) {
     for (let j = 0; j + 1 < o.P.length; j++) { const L = Math.hypot(o.P[j + 1][0] - o.P[j][0], o.P[j + 1][1] - o.P[j][1]); if (L > best) { best = L; lab = o.seg[j]; } }
     return { pts: o.pts, back: false, lab };
   };
+}
+
+// ---------------------------------------------------------------- base strips and finishing
+
+const STRIP_H = 46, STRIP_GAP = 26;
+
+/** layoutCore without the base blocks (shared vocabulary), which go full width in a strip under the drawing. */
+function layoutFlat(level, measure, filter, aspect, room) {
+  const base = (level.nodes || []).filter((n) => n.base).sort((a, b) => byStr(a.id, b.id));
+  if (!base.length) return layoutCore(level, measure, null, filter, false, aspect, room);
+  const ids = new Set(base.map((n) => n.id));
+  const rest = { ...level, nodes: level.nodes.filter((n) => !ids.has(n.id)), edges: (level.edges || []).filter((e) => !ids.has(e.s) && !ids.has(e.t)) };
+  const lay = rest.nodes.length ? layoutCore(rest, measure, null, filter, false, aspect, room)
+    : { w: 240, h: PAD.top + PAD.bottom - STRIP_GAP, mode: 'shelf', dir: 'LR', nodes: {}, ghosts: {}, edges: {}, order: [] };
+  const w = Math.max(lay.w - 2 * PAD.x, ...base.map((n) => nodeSize(n, measure).w));
+  let y = lay.h - PAD.bottom + STRIP_GAP;
+  for (const n of base) { lay.nodes[n.id] = { x: PAD.x, y, w, h: STRIP_H, L: 1e3, strip: true }; y += STRIP_H + 10; }
+  lay.w = Math.max(lay.w, w + 2 * PAD.x);
+  lay.h = y - 10 + PAD.bottom;
+  lay.order = lay.order.concat(base.map((n) => n.id));
+  return lay;
+}
+
+/** Every LR layout ends here: route the visible edges nothing routed yet (edges to a base strip) and re-route
+ *  any edge that runs behind a block. */
+function finish(lay, level, filter, measure) {
+  const vis = (level.edges || []).filter((e) => e.s !== e.t && Object.keys(visibleKinds(e, filter)).length
+    && !lay.edges[e.id] && (lay.nodes[e.s] || lay.ghosts[e.s]) && (lay.nodes[e.t] || lay.ghosts[e.t])).sort((a, b) => byStr(a.id, b.id));
+  if (vis.length) {
+    const router = gridRouter(lay.w, lay.h, lay.nodes, lay.areas || {}, lay.ghosts);
+    const areaOf = lay.areaOf || new Map(), ends = new Map(), plan = [];
+    for (const e of vis) {
+      const a = lay.nodes[e.s] || lay.ghosts[e.s], b = lay.nodes[e.t] || lay.ghosts[e.t];
+      const [ss, ts] = sidesOf(a, b);
+      // a strip is entered right under (or above) the other end, not at its middle
+      const ps = { side: ss, far: 'lr'.includes(ss) ? b.y + b.h / 2 : b.x + b.w / 2, key: e.id };
+      const pt = { side: ts, far: 'lr'.includes(ts) ? a.y + a.h / 2 : a.x + a.w / 2, key: e.id };
+      plan.push({ e, ps, pt, a, b });
+      (ends.get(e.s) || ends.set(e.s, []).get(e.s)).push(ps);
+      (ends.get(e.t) || ends.set(e.t, []).get(e.t)).push(pt);
+    }
+    for (const [id, list] of [...ends.entries()].sort((x, y) => byStr(x[0], y[0]))) spreadPorts(list, lay.nodes[id] || lay.ghosts[id]);
+    for (const p of plan) {
+      for (const [q, r, o] of [[p.ps, p.a, p.b], [p.pt, p.b, p.a]]) if (r.strip && 'tb'.includes(q.side)) q.pt = [clamp(o.x + o.w / 2, r.x + 12, r.x + r.w - 12), q.pt[1]];
+      const got = router(p.e, p.ps, p.pt, areaOf.get(p.e.s), areaOf.get(p.e.t));
+      if (got) lay.edges[p.e.id] = got;
+    }
+  }
+  return unblock(lay, level, filter);
 }

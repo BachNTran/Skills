@@ -68,7 +68,8 @@ def test_areas_open_at_the_systems_root(am):
     assert tags["core"] == tags["web"] == "platform" and tags["svc"] == tags["tools/fmt"] == "backend"
     assert tags["extra"] is None
     assert [(a["id"], a["title"], sorted(a["members"])) for a in lv["areas"]] == [
-        ("backend", "Backend", ["svc", "tools/fmt"]), ("platform", "Platform", ["core", "web"])]
+        ("backend", "Backend", ["svc", "tools/fmt"]), ("platform", "Platform", [".#m:OP", "core", "web"])]
+    assert tags[".#m:OP"] == "platform"  # an outside actor that only talks to one area sits in its box
 
 
 def test_root_edges_join_members_never_boxes(am):
@@ -140,7 +141,7 @@ def test_two_builds_give_the_same_levels(tmp_path):
 
 def test_show_text_groups_by_area(am):
     text = am.show_text("systems", ".")
-    assert "  [Backend]  area/backend\n    fmt " in text and "  [Platform]  area/platform\n    core " in text
+    assert "  [Backend]  area/backend\n    fmt " in text and "  [Platform]  area/platform\n    Operator " in text
 
 
 def test_bad_area_specs_are_ignored(tmp_path):
@@ -148,3 +149,51 @@ def test_bad_area_specs_are_ignored(tmp_path):
                                  {"id": "ok", "members": ["nope", "web"]}, "junk"]}}
     m = open_map(_areas_repo(tmp_path / "r", cfg), tmp_path / "d", exact=True)
     assert set(m.areas) == {"ok"} and m.areas["ok"]["members"] == ["web"] and m.areas["ok"]["missing"] == ["nope"]
+
+
+# ---------- round 3: a level shows its own diagram; one block per actor; shared base blocks ----------
+
+def test_child_diagrams_never_leak_upward(am):
+    """The root shows the root and area diagrams only: svc's own diagram (pkg → db) stays inside svc."""
+    root = by_pair(am.level("systems", "."))
+    assert all(lb != "INSERT samples" for e in root.values() for lb in e["labels"])
+    inner = by_pair(am.level("systems", "svc"))
+    assert inner[("svc/pkg", "svc/db")]["labels"] == ["INSERT samples"]
+    for e in am.edges:
+        if e["k"] == "flow":
+            assert e.get("diag") is not None  # every drawn flow knows the diagram that drew it
+
+
+def test_peer_diagram_edges_stay_out(tmp_path):
+    """A flow drawn in another module's diagram is not this level's: hidden here, unless it crosses in."""
+    root = _areas_repo(tmp_path)
+    web = root / "web" / "web.md"
+    web.write_text(web.read_text(encoding="utf-8") + "\n## Peer notes\n\n```mermaid\nflowchart LR\n  X[\"extra\"] -- \"peer only\" --> P[\"proto\"]\n```\n",
+                   encoding="utf-8")
+    m = open_map(root, tmp_path / "d", exact=True)
+    assert all("peer only" not in e["labels"] for e in m.level("systems", ".")["edges"])
+
+
+def test_one_block_per_actor_and_one_ghost(tmp_path):
+    """The same outside actor drawn in two diagrams is one block at a level and one ghost below it."""
+    doc = MAP_DOC.replace('  CORE["core"] -- "Sample" --> WEB["web"]',
+                          '  CORE["core"] -- "Sample" --> WEB["web"]\n  OP2["Operator"]:::ext -- "clicks" --> WEB')
+    root = _areas_repo(tmp_path)
+    (root / "docs" / "poly.system_map.md").write_text(doc, encoding="utf-8")
+    m = open_map(root, tmp_path / "d", exact=True)
+    names = [n["name"] for n in m.level("systems", ".")["nodes"] if n["type"] == "actor"]
+    assert names.count("Operator") == 1
+    for at in ("platform", "core"):
+        lv = m.level("systems", at)
+        seen = [g["name"] for g in lv["ghosts"]] + [n["name"] for n in lv["nodes"] if n["type"] == "actor"]
+        assert seen.count("Operator") <= 1, (at, seen)
+
+
+def test_base_members_and_their_edges(tmp_path):
+    cfg = json.loads(json.dumps(AREAS))
+    cfg["systems"]["base"] = ["proto"]
+    m = open_map(_areas_repo(tmp_path, cfg), tmp_path / "d", exact=True)
+    lv = m.level("systems", ".")
+    assert {n["id"] for n in lv["nodes"] if n.get("base")} == {"proto"}
+    assert all(e.get("base") for e in lv["edges"] if "proto" in (e["s"], e["t"]))
+    assert not any(e.get("base") for e in lv["edges"] if "proto" not in (e["s"], e["t"]))

@@ -77,6 +77,18 @@ export function wrap2(ctx, text, font, max) {
   if (cur) lines.push(ellipsize(ctx, cur, font, max));
   return lines.slice(0, 2);
 }
+/** A name in two lines, broken after an underscore, a dot, a dash or a space (the most even break):
+ *  {lines, w (the wider line, in `font`)} or null when there is no break. */
+function split2(ctx, label, font) {
+  const cuts = [];
+  for (let i = 1; i < label.length - 1; i++) if ('_.- /'.includes(label[i - 1]) || (/[a-z]/.test(label[i - 1]) && /[A-Z]/.test(label[i]))) cuts.push(i);
+  let best = null;
+  for (const c of cuts) {
+    const a = label.slice(0, c).trimEnd(), b = label.slice(c).trimStart(), w = Math.max(textW(ctx, a, font), textW(ctx, b, font));
+    if (!best || w < best.w) best = { lines: [a, b], w };
+  }
+  return best;
+}
 export const fontOf = (w, size, fam) => `${w} ${Math.round(size * 2) / 2}px ${fam}`;
 
 // ---------------------------------------------------------------- paths
@@ -354,7 +366,7 @@ export function drawNode(ctx, node, rect, style, lod) {
       ctx.strokeStyle = rgba(sel ? T.mint : T.lime, sel ? 0.9 : 0.75); ctx.lineWidth = sel ? 2 : 1.6; ctx.stroke();
     }
   }
-  if (lod < 2 || style.only === 'body') { ctx.globalAlpha = 1; return; }
+  if ((lod < 2 && !(lod === 1 && w >= 44 && h >= 18)) || style.only === 'body') { ctx.globalAlpha = 1; return; }
 
   // ---------- text
   const ta = style.textAlpha ?? 1;
@@ -363,14 +375,31 @@ export function drawNode(ctx, node, rect, style, lod) {
   const k = style.k || 1;
   const baseFs = node.type === 'symbol' ? 12.5 : node.type === 'file' ? 13 : 14;
   const fs = clamp(baseFs * k, 10.5, baseFs * 1.55);
-  const nameFont = fontOf(L.frame || node.type === 'symbol' ? 600 : 650, fs, fam);
+  let nameFont = fontOf(L.frame || node.type === 'symbol' ? 600 : 650, fs, fam);
   const ink = L.muted ? T.soft : T.ink;
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   const label = node.name || node.id;
 
-  if (lod === 2 || (h < fs * 1.9 && !L.tab)) { // compact: one centred (or left) line
+  if (lod <= 2 || (h < fs * 1.9 && !L.tab)) { // compact: one centred (or left) line
     const lead = L.letter && lod >= 3 ? Math.min(h - 8, fs * 1.25) : 0;
     const avail = w - 16 - (lead ? lead + 6 : 0) - (L.shape === 'hex' ? h * 0.3 : 0);
+    // the whole name, never cut: a smaller font, then two lines, before an ellipsis
+    const full = textW(ctx, label, nameFont), wt = L.frame || node.type === 'symbol' ? 600 : 650;
+    if (full > avail && node.type !== 'symbol') {
+      const one = fs * avail / full * 0.94;
+      if (one >= 8) nameFont = fontOf(wt, one, fam);
+      else {
+        const two = split2(ctx, label, nameFont), room = w - 10;
+        const f2s = two ? Math.min(fs * 0.9, fs * room / two.w * 0.94) : 0, cy = (L.tab ? fy + fh / 2 : y + h / 2);
+        if (two && f2s >= 6.5 && h >= f2s * 2.05) {
+          const f2 = fontOf(wt, f2s, fam), lh = f2s * 1.18;
+          ctx.font = f2; ctx.fillStyle = ink; ctx.textAlign = 'center';
+          two.lines.forEach((t, i) => ctx.fillText(t, px(x + w / 2, dpr), px(cy + (i - 0.5) * lh, dpr)));
+          ctx.textAlign = 'left'; ctx.globalAlpha = 1; return;
+        }
+        nameFont = fontOf(wt, Math.max(6.5, one), fam); // one word, no break: smaller still, before an ellipsis
+      }
+    }
     const s = ellipsize(ctx, label, nameFont, avail);
     if (s) {
       const tw = textW(ctx, s, nameFont), tot = tw + (lead ? lead + 6 : 0);

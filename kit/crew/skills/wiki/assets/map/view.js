@@ -4,6 +4,7 @@
 const SYS_KINDS = ['flow', 'dep'];
 const CODE_KINDS = ['call', 'import', 'inherit', 'contract', 'data'];
 const ALL_KINDS = [...SYS_KINDS, ...CODE_KINDS];
+const SYS_DEFAULT = ['flow']; // a Systems level shows its diagram; deps, imports and calls come with "Code edges"
 const KIND_LABEL = { flow: 'Flows (diagram)', dep: 'Uses (deps)', call: 'Calls', import: 'Imports', inherit: 'Inherits', contract: 'Contracts', data: 'Data' };
 const CONF_STEPS = [[0, 'All'], [0.5, '≥ 0.5'], [0.8, '≥ 0.8']];
 const ROLE_LABEL = { overview: 'Overview', brief: 'Brief', req: 'Requirements', icd: 'ICD', tests: 'Tests', resource: 'Resource', figure: 'Figure' };
@@ -81,7 +82,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
   let prefetching = 0, hoverTimer = 0, searchTimer = 0, loadTimer = 0;
   let health = false, autoDrill = true;
   const filters = {
-    systems: { kinds: new Set(SYS_KINDS), minConf: 0, compare: false },
+    systems: { kinds: new Set(SYS_DEFAULT), minConf: 0, compare: false },
     code: { kinds: new Set(CODE_KINDS), minConf: 0.5, compare: false },
   };
 
@@ -245,7 +246,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
   }
   let filterSig = '';
   function applyFilter(l) { // setFilter re-lays the current level, so only on a real change
-    const f = filterFor(l), sig = `${[...f.kinds].sort().join(',')}@${f.minConf}`;
+    const f = filterFor(l), sig = `${[...f.kinds].sort().join(',')}@${f.minConf}${f.base ? '' : '-b'}`;
     if (sig === filterSig || !engine) return;
     filterSig = sig;
     engine.setFilter(f);
@@ -253,8 +254,8 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
   function filterFor(l) {
     const f = filters[l];
     const kinds = new Set(f.kinds);
-    if (l === 'systems' && f.compare) for (const k of CODE_KINDS) kinds.add(k);
-    return { kinds, minConf: f.minConf };
+    if (l === 'systems' && f.compare) for (const k of ['dep', ...CODE_KINDS]) kinds.add(k);
+    return { kinds, minConf: f.minConf, base: l !== 'systems' || !!f.compare }; // base (shared vocabulary) edges with code edges
   }
   // Show one level. A Systems level that is not there (a leaf with code inside) hands off to the Code lens.
   async function show(l, a, { mode = 'jump', via = null } = {}) {
@@ -792,7 +793,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
       tool('up', 'Up one level (Backspace)', ICONS.up, () => run(upOne)),
       el('span', { class: 'tsep', 'aria-hidden': 'true' }),
       tool('filters', 'Edge filters', ICONS.filter, () => togglePop()),
-      tool('compare', 'Compare with code: show observed links in Systems', ICONS.compare, () => { filters.systems.compare = !filters.systems.compare; applyFilter(lens); syncTools(); }, true),
+      tool('compare', 'Code edges: show deps, imports and calls (and edges to shared base blocks)', ICONS.compare, () => { filters.systems.compare = !filters.systems.compare; applyFilter(lens); syncTools(); }, true),
       tool('health', 'Doc health overlay (h)', ICONS.health, () => setHealth(!health), true),
       tool('through', 'Zoom through blocks', ICONS.through, () => { autoDrill = !autoDrill; engine?.setAutoDrill(autoDrill); syncTools(); }, true),
       tool('untrace', 'Clear the trace', ICONS.untrace, clearTrace));
@@ -833,7 +834,7 @@ export function createMapView({ root, getJSON, openDoc, openSource, onState }) {
       return el('label', {}, r, el('span', { text: label }));
     })));
     const reset = el('button', { type: 'button', class: 'btn sm', text: 'Defaults', onclick: () => {
-      f.kinds = new Set(lens === 'code' ? CODE_KINDS : SYS_KINDS); f.minConf = lens === 'code' ? 0.5 : 0;
+      f.kinds = new Set(lens === 'code' ? CODE_KINDS : SYS_DEFAULT); f.minConf = lens === 'code' ? 0.5 : 0;
       applyFilter(lens); fillPop();
     } });
     pop.replaceChildren(kinds, conf, el('div', { class: 'end' }, reset));

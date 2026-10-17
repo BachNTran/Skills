@@ -2,7 +2,7 @@
 // pan/zoom/inertia, one level frame at a time; drilling zooms into a block and swaps its child level in
 // place (the child layout is mapped into the block's rect, so nothing jumps). No DOM text, no fetches:
 // levels come in through show(), peeks through on.peek(). Repo strings reach the canvas only via fillText.
-import { layoutLevel, visibleKinds, LABEL_MAX } from './layout.js';
+import { layoutLevel, visibleKinds, LABEL_MAX, LABELS_ALWAYS } from './layout.js';
 import { PALETTE, drawNode, drawGhost, drawEdge, edgeLook, drawLabel, labelRect, chip, nodeLook, shapePath,
   roundRect, rgba, isLight, fontOf, textW, ellipsize } from './draw.js';
 
@@ -588,7 +588,7 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
       const lod = lodOf(r.w);
       const st = { T, fam, dpr, light, tint: tintOf(id), alpha: a, k: k, sel: main && sel === id, hov: main && hover && hover.id === id,
         lit: !!(lit && lit.nodes.has(id)), health: overlay === 'health', stale: n.badges && n.badges.stale > 0, moving, peek: !!o.peek };
-      const canPeek = !o.peek && !isVia && n.drill && r.w >= PEEK_MIN && lod >= 3;
+      const canPeek = !o.peek && !isVia && n.drill && r.w >= PEEK_MIN && lod >= 3 && !r0.strip; // a base strip: no preview
       if (canPeek) peekList.push({ id, n, r, st, lod, a });
       else {
         if (isVia) { drawNode(ctx, n, r, { ...st, only: 'body' }, lod); drawNode(ctx, n, r, { ...st, alpha: alpha * clamp(o.viaText ?? 1, 0, 1), only: 'text' }, lod); }
@@ -655,7 +655,10 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
     if (a <= 0.02) return;
     const k = Xf.k, fs = clamp(11 * Math.sqrt(k), 9.5, 13);
     const placed = [];
-    const cand = f.vis.filter((v) => (v.look.label && v.e.labels && v.e.labels.length) || v.look.chip).sort((p, q) => (q.e.n || 0) - (p.e.n || 0) || (p.e.id < q.e.id ? -1 : 1));
+    // a busy level labels only what is in focus: the hovered edge or block, and the selected block's edges
+    const busy = f.vis.length > LABELS_ALWAYS && f === cur;
+    const focus = (e) => (sel && (e.s === sel || e.t === sel)) || (hover && (hover.type === 'edge' ? hover.id === e.id : (e.s === hover.id || e.t === hover.id)));
+    const cand = f.vis.filter((v) => (!busy || focus(v.e)) && ((v.look.label && v.e.labels && v.e.labels.length) || v.look.chip)).sort((p, q) => (q.e.n || 0) - (p.e.n || 0) || (p.e.id < q.e.id ? -1 : 1));
     const blocks = [];
     for (const id of f.draw) { const r = f.lay.nodes[id]; blocks.push({ x: r.x * k + Xf.tx, y: r.y * k + Xf.ty, w: r.w * k, h: r.h * k }); }
     if (f.title) blocks.push(f.title);
@@ -962,8 +965,8 @@ export function createEngine({ host, tokens, calm = () => false, on = {}, now } 
   const api = {
     show,
     setFilter(fl) {
-      filter = fl ? { kinds: fl.kinds instanceof Set ? new Set(fl.kinds) : new Set(fl.kinds || []), minConf: +fl.minConf || 0 } : null;
-      filterKey = filter ? [...filter.kinds].sort().join(',') + '@' + filter.minConf : 'all';
+      filter = fl ? { kinds: fl.kinds instanceof Set ? new Set(fl.kinds) : new Set(fl.kinds || []), minConf: +fl.minConf || 0, base: fl.base !== false } : null;
+      filterKey = filter ? [...filter.kinds].sort().join(',') + '@' + filter.minConf + (filter.base === false ? '-b' : '') : 'all';
       if (cur && !busy()) { finish(true); return show(cur.level, { mode: 'lens' }); }
       return Promise.resolve();
     },
